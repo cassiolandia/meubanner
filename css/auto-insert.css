@@ -238,3 +238,26 @@ body.meu-banner-popup-active {
         padding: 8px 10px;
     }
 }
+
+/* Controle de visibilidade por dispositivo */
+
+/* Oculta em telas maiores (desktops) */
+@media (min-width: 1025px) {
+    .hide-on-desktop {
+        display: none !important;
+    }
+}
+
+/* Oculta em telas de tamanho médio (tablets) */
+@media (min-width: 768px) and (max-width: 1024px) {
+    .hide-on-tablet {
+        display: none !important;
+    }
+}
+
+/* Oculta em telas pequenas (celulares) */
+@media (max-width: 767px) {
+    .hide-on-mobile {
+        display: none !important;
+    }
+}

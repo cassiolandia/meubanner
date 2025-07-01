@@ -1,0 +1,240 @@
+/* Meu Banner - Estilos de Inserção Automática */
+
+/* Container geral para o banner inserido, com margens padrão */
+.meu-banner-auto-insert-wrapper {
+    margin-top: 25px;
+    margin-bottom: 25px;
+    clear: both; /* Garante que não interfira com outros floats */
+}
+
+/* Alinhamento Centralizado */
+.meu-banner-align-center {
+    text-align: center;
+}
+.meu-banner-align-center .meu-banner-item {
+    display: inline-block; /* Permite centralizar o bloco */
+}
+
+/* Alinhamento à Esquerda (Flutuante) */
+.meu-banner-align-left {
+    float: left;
+    margin-right: 20px;
+    margin-bottom: 10px;
+    max-width: 50%; /* Evita que o banner ocupe a largura toda */
+}
+
+/* Alinhamento à Direita (Flutuante) */
+.meu-banner-align-right {
+    float: right;
+    margin-left: 20px;
+    margin-bottom: 10px;
+    max-width: 50%; /* Evita que o banner ocupe a largura toda */
+}
+
+/* Garante que o conteúdo após o banner flutuante se comporte corretamente */
+.meu-banner-auto-insert-wrapper:after {
+    content: "";
+    display: table;
+    clear: both;
+}
+
+/* Media Query para banners flutuantes em telas pequenas */
+@media (max-width: 600px) {
+    /* Em telas pequenas, remove a flutuação e centraliza o banner */
+    .meu-banner-align-left,
+    .meu-banner-align-right {
+        float: none;
+        margin-left: auto;
+        margin-right: auto;
+        text-align: center;
+        max-width: 100%;
+    }
+}
+/* --- Estilos do Botão Fechar --- */
+
+/* Torna o wrapper o container de posicionamento para o botão */
+.meu-banner-wrapper {
+    position: relative;
+}
+
+/* Estilo do botão 'X' */
+.meu-banner-close-btn {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    z-index: 99; /* Garante que o botão fique sobre o conteúdo do banner */
+    
+    /* Aparência */
+    background-color: rgba(0, 0, 0, 0.5);
+    color: #fff;
+    border: none;
+    border-radius: 50%; /* Faz o botão ficar redondo */
+    cursor: pointer;
+    font-family: Arial, sans-serif;
+    font-size: 16px;
+    font-weight: bold;
+    
+    /* Tamanho e alinhamento do 'X' */
+    width: 24px;
+    height: 24px;
+    line-height: 24px;
+    text-align: center;
+    padding: 0;
+    
+    transition: background-color 0.2s ease;
+}
+
+.meu-banner-close-btn:hover {
+    background-color: rgba(0, 0, 0, 0.8);
+}
+/*
+==========================================================================
+  ESTILOS PROFISSIONAIS PARA BANNERS DE PÁGINA (POPUP E STICKY)
+  Versão 2.0 - Revisada para Usabilidade e Qualidade Visual
+==========================================================================
+*/
+
+/* --- Base Comum --- */
+.meu-banner-page-container {
+    --meu-banner-z-index: 99998;
+    position: fixed;
+    z-index: var(--meu-banner-z-index);
+    box-sizing: border-box;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.35s ease;
+}
+.meu-banner-page-container.is-visible {
+    opacity: 1;
+    visibility: visible;
+}
+
+
+/* --- Estilos do Popup --- */
+
+/* O Overlay (fundo escurecido) */
+.meu-banner-popup-overlay {
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(10, 22, 41, 0.7);
+    -webkit-backdrop-filter: blur(4px); /* Efeito de vidro fosco para navegadores Webkit */
+    backdrop-filter: blur(4px);
+}
+
+/* O Contêiner do Popup (a "janela" modal) */
+.meu-banner-popup-wrapper {
+    top: 50%;
+    left: 50%;
+    width: 90%;
+    max-width: 550px; /* Um pouco mais contido */
+    transform: translate(-50%, -50%) scale(0.9);
+    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.meu-banner-popup-wrapper.is-visible {
+    transform: translate(-50%, -50%) scale(1); /* Animação de "zoom in" suave */
+}
+
+/* O Conteúdo Interno do Banner no Popup */
+.meu-banner-popup-wrapper .meu-banner-item {
+    border-radius: 8px; /* Arredonda o conteúdo interno */
+    overflow: hidden;   /* Garante que a imagem respeite o border-radius */
+    box-shadow: 0 15px 40px rgba(0,0,0,0.25);
+}
+.meu-banner-popup-wrapper .meu-banner-item img {
+    display: block; /* Remove espaço extra abaixo da imagem */
+    width: 100%;
+    height: auto;
+}
+
+/* O Botão de Fechar do Popup (Agora posicionado fora do wrapper interno) */
+.meu-banner-popup-wrapper .meu-banner-close-btn {
+    position: absolute;
+    top: -15px;
+    right: -15px;
+    width: 32px;
+    height: 32px;
+    line-height: 30px;
+    font-size: 24px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+    background-color: #fff;
+    color: #333;
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+    transition: all 0.2s ease-in-out;
+}
+.meu-banner-popup-wrapper .meu-banner-close-btn:hover {
+    transform: scale(1.1) rotate(90deg);
+    background-color: #f1f1f1;
+}
+
+/* Bloqueia o scroll da página quando o popup está ativo */
+body.meu-banner-popup-active {
+    overflow: hidden;
+}
+
+
+/* --- Estilos do Sticky no Rodapé --- */
+.meu-banner-sticky-wrapper {
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    background-color: #fff; /* Fundo padrão é branco para o container */
+    padding: 12px 20px;
+    box-shadow: 0 -4px 15px rgba(0,0,0,0.08);
+    transform: translateY(100%);
+    transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.meu-banner-sticky-wrapper.is-visible {
+    transform: translateY(0);
+}
+
+/* O conteúdo interno do banner no Sticky */
+.meu-banner-sticky-wrapper .meu-banner-item {
+    flex-grow: 1; /* Ocupa o espaço disponível */
+    text-align: center;
+}
+
+/* Botão de fechar do Sticky (agora posicionado ao lado do conteúdo) */
+.meu-banner-sticky-wrapper .meu-banner-close-btn {
+    position: static; /* Remove posicionamento absoluto */
+    background: transparent;
+    color: #888;
+    width: 30px;
+    height: 30px;
+    line-height: 30px;
+    font-size: 28px;
+    font-weight: 300;
+    border-radius: 4px;
+    margin-left: 15px; /* Espaço entre o banner e o botão */
+    flex-shrink: 0; /* Impede que o botão encolha */
+    transition: background-color 0.2s, color 0.2s;
+}
+.meu-banner-sticky-wrapper .meu-banner-close-btn:hover {
+    background-color: #f0f0f0;
+    color: #333;
+}
+
+/* --- Estilos Predefinidos (Light/Dark) para Sticky --- */
+.meu-banner-sticky-style-dark {
+    background-color: #1e293b; /* Um azul escuro mais moderno */
+}
+.meu-banner-sticky-style-dark .meu-banner-close-btn {
+    color: #94a3b8;
+}
+.meu-banner-sticky-style-dark .meu-banner-close-btn:hover {
+    color: #fff;
+    background-color: #334155;
+}
+
+/* Em telas pequenas, o botão do sticky pode ficar muito grande */
+@media (max-width: 768px) {
+    .meu-banner-sticky-wrapper {
+        padding: 8px 10px;
+    }
+}

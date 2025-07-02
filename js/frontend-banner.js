@@ -1,84 +1,117 @@
-// js/frontend-banner.js (Versão 2.1 - Botão de Fechar Corrigido)
+// js/frontend-banner.js (Versão 3.0 - Lógica de Frequência)
 
 document.addEventListener('DOMContentLoaded', function () {
-    const popupOverlay = document.querySelector('.meu-banner-popup-overlay');
     const popupWrapper = document.querySelector('.meu-banner-popup-wrapper');
     const stickyWrapper = document.querySelector('.meu-banner-sticky-wrapper');
 
-    /**
-     * Fecha o Popup e o Overlay.
-     */
-    function closePopup() {
-        if (!popupOverlay || !popupWrapper) return;
-        
-        // Remove as classes de visibilidade para acionar as animações de saída.
-        popupOverlay.classList.remove('is-visible');
-        popupWrapper.classList.remove('is-visible');
-        
-        // Remove a classe do body para liberar o scroll.
-        document.body.classList.remove('meu-banner-popup-active');
-    }
-    
-    /**
-     * Fecha o Banner Sticky.
-     */
-    function closeSticky() {
-        if (!stickyWrapper) return;
-        stickyWrapper.classList.remove('is-visible');
-    }
+    // --- LÓGICA DE CONTAGEM DE ACESSOS ---
+    const pageAccessCounter = {
+        key: 'meuBannerPageCount',
+        increment: function() {
+            let count = parseInt(sessionStorage.getItem(this.key) || '0', 10);
+            count++;
+            sessionStorage.setItem(this.key, count);
+            return count;
+        },
+        getCount: function() {
+            return parseInt(sessionStorage.getItem(this.key) || '0', 10);
+        }
+    };
+    pageAccessCounter.increment();
 
-    /**
-     * Fecha um Banner Inline.
-     * @param {HTMLElement} closeButton - O botão de fechar que foi clicado.
-     */
-    function closeInline(closeButton) {
-        const bannerWrapper = closeButton.closest('.meu-banner-wrapper');
-        if (bannerWrapper) {
-            bannerWrapper.style.display = 'none';
+    // --- FUNÇÕES DE VERIFICAÇÃO DE FREQUÊNCIA ---
+    const frequencyChecker = {
+        shouldShow: function(bannerElement) {
+            const blocoId = bannerElement.dataset.blocoId;
+            const type = bannerElement.dataset.frequencyType || 'always';
+
+            if (type === 'always') {
+                return true;
+            }
+
+            const lastClosed = JSON.parse(localStorage.getItem('meuBannerLastClosed_' + blocoId));
+
+            if (!lastClosed) {
+                return true; // Nunca foi fechado, mostrar.
+            }
+
+            if (type === 'time') {
+                const value = parseInt(bannerElement.dataset.frequencyTimeValue, 10);
+                const unit = bannerElement.dataset.frequencyTimeUnit || 'hours';
+                let seconds_to_wait = 0;
+                if (unit === 'minutes') seconds_to_wait = value * 60;
+                else if (unit === 'hours') seconds_to_wait = value * 3600;
+                else if (unit === 'days') seconds_to_wait = value * 86400;
+
+                const now = new Date().getTime();
+                const time_since_closed = (now - lastClosed.timestamp) / 1000;
+
+                return time_since_closed >= seconds_to_wait;
+            }
+
+            if (type === 'access') {
+                const value = parseInt(bannerElement.dataset.frequencyAccessValue, 10);
+                const pages_since_closed = pageAccessCounter.getCount() - lastClosed.pageCount;
+                return pages_since_closed >= value;
+            }
+
+            return true;
+        },
+        registerClose: function(bannerElement) {
+            const blocoId = bannerElement.dataset.blocoId;
+            const data = {
+                timestamp: new Date().getTime(),
+                pageCount: pageAccessCounter.getCount()
+            };
+            localStorage.setItem('meuBannerLastClosed_' + blocoId, JSON.stringify(data));
+        }
+    };
+
+    // --- FUNÇÕES DE CONTROLE DO BANNER ---
+    function closeBanner(wrapper) {
+        if (!wrapper) return;
+        frequencyChecker.registerClose(wrapper);
+        wrapper.classList.remove('is-visible');
+        if (wrapper.classList.contains('meu-banner-popup-wrapper')) {
+            const overlay = document.querySelector('.meu-banner-popup-overlay');
+            if(overlay) overlay.classList.remove('is-visible');
+            document.body.classList.remove('meu-banner-popup-active');
         }
     }
 
-    /**
-     * Delegação de eventos no BODY para capturar todos os cliques.
-     */
-    document.body.addEventListener('click', function(e) {
-        // Verifica se o alvo do clique (ou um de seus pais) é o botão de fechar.
-        const closeButton = e.target.closest('.meu-banner-close-btn');
-        if (!closeButton) return;
-            
-        e.preventDefault();
+    function showBanner(wrapper) {
+        if (!wrapper || !frequencyChecker.shouldShow(wrapper)) {
+            return;
+        }
         
-        // **LÓGICA CORRIGIDA**
-        // Verifica qual o container principal do botão e chama a função correta.
-        if (closeButton.closest('.meu-banner-popup-wrapper')) {
-            closePopup();
-        } else if (closeButton.closest('.meu-banner-sticky-wrapper')) {
-            closeSticky();
-        } else {
-            // Se não for popup nem sticky, assume que é inline.
-            closeInline(closeButton);
+        const delay = wrapper.classList.contains('meu-banner-popup-wrapper') ? 1500 : 1000;
+
+        setTimeout(() => {
+            wrapper.classList.add('is-visible');
+            if (wrapper.classList.contains('meu-banner-popup-wrapper')) {
+                const overlay = document.querySelector('.meu-banner-popup-overlay');
+                if(overlay) overlay.classList.add('is-visible');
+                document.body.classList.add('meu-banner-popup-active');
+            }
+        }, delay);
+    }
+
+    // --- INICIALIZAÇÃO E EVENTOS ---
+    document.body.addEventListener('click', function(e) {
+        const closeButton = e.target.closest('.meu-banner-close-btn');
+        if (closeButton) {
+            e.preventDefault();
+            const bannerWrapper = closeButton.closest('.meu-banner-page-container, .meu-banner-wrapper');
+            closeBanner(bannerWrapper);
+        }
+        
+        const popupOverlay = e.target.closest('.meu-banner-popup-overlay');
+        if (popupOverlay) {
+            closeBanner(popupWrapper);
         }
     });
 
-    // Clicar no overlay também fecha o popup.
-    if (popupOverlay) {
-        popupOverlay.addEventListener('click', closePopup);
-    }
-
-    /**
-     * Lógica para exibir os Banners de Página (Popup e Sticky).
-     */
-    if (popupWrapper) {
-        setTimeout(() => {
-            document.body.classList.add('meu-banner-popup-active');
-            if (popupOverlay) popupOverlay.classList.add('is-visible');
-            popupWrapper.classList.add('is-visible');
-        }, 1500); // Delay de 1.5 segundos
-    }
-
-    if (stickyWrapper) {
-        setTimeout(() => {
-            stickyWrapper.classList.add('is-visible');
-        }, 1000); // Delay de 1 segundo
-    }
+    // Inicia a exibição dos banners de página
+    showBanner(popupWrapper);
+    showBanner(stickyWrapper);
 });

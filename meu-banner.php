@@ -230,11 +230,30 @@ function meu_banner_render_page_banners() {
 
         $format = $rule['page_format'] ?? 'popup';
         $style = $rule['page_style'] ?? 'dark';
-        $container_attrs = 'data-bloco-id="' . esc_attr($rule['bloco_id']) . '"';
+        
+        // Prepara os atributos do container, incluindo os de frequência
+        $container_attrs_arr = [
+            'data-bloco-id' => esc_attr($rule['bloco_id']),
+            'data-frequency-type' => esc_attr($rule['frequency_type'] ?? 'always'),
+        ];
+
+        if (isset($rule['frequency_type'])) {
+            if ($rule['frequency_type'] === 'time') {
+                $container_attrs_arr['data-frequency-time-value'] = esc_attr($rule['frequency_time_value'] ?? 1);
+                $container_attrs_arr['data-frequency-time-unit'] = esc_attr($rule['frequency_time_unit'] ?? 'hours');
+            } elseif ($rule['frequency_type'] === 'access') {
+                $container_attrs_arr['data-frequency-access-value'] = esc_attr($rule['frequency_access_value'] ?? 5);
+            }
+        }
+
+        $container_attrs = '';
+        foreach ($container_attrs_arr as $key => $value) {
+            $container_attrs .= $key . '="' . $value . '" ';
+        }
 
         if ($format === 'popup' && !$has_rendered_popup) {
             echo '<div class="meu-banner-page-container meu-banner-popup-overlay"></div>';
-            echo '<div class="meu-banner-page-container meu-banner-popup-wrapper" role="dialog" aria-modal="true" data-bloco-id="' . esc_attr($rule['bloco_id']) . '">';
+            echo '<div class="meu-banner-page-container meu-banner-popup-wrapper" role="dialog" aria-modal="true" ' . $container_attrs . '>';
             echo $close_button_html;
             echo $banner_content_html;
             echo '</div>';
@@ -242,7 +261,7 @@ function meu_banner_render_page_banners() {
         }
 
         if ($format === 'sticky' && !$has_rendered_sticky) {
-            echo '<div class="meu-banner-page-container meu-banner-sticky-wrapper meu-banner-sticky-style-'.esc_attr($style).'" role="complementary" data-bloco-id="' . esc_attr($rule['bloco_id']) . '">';
+            echo '<div class="meu-banner-page-container meu-banner-sticky-wrapper meu-banner-sticky-style-'.esc_attr($style).'" role="complementary" ' . $container_attrs . '>';
             echo $banner_content_html;
             echo $close_button_html;
             echo '</div>';

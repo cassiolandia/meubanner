@@ -12,16 +12,23 @@ function meu_banner_render_auto_insert_page() {
         $rules = [];
         if (isset($_POST['rules']) && is_array($_POST['rules'])) {
             foreach ($_POST['rules'] as $rule_data) {
-                // A sanitização continua a mesma, cobrindo todos os campos possíveis
                 $sanitized_rule = [
                     'enabled'       => isset($rule_data['enabled']) ? 1 : 0,
                     'bloco_id'      => isset($rule_data['bloco_id']) ? intval($rule_data['bloco_id']) : 0,
                     'insertion_type'=> isset($rule_data['insertion_type']) ? sanitize_key($rule_data['insertion_type']) : 'content',
+                    // Campos de Conteúdo
                     'position'      => isset($rule_data['position']) ? sanitize_key($rule_data['position']) : 'before_content',
                     'paragraph_num' => isset($rule_data['paragraph_num']) ? intval($rule_data['paragraph_num']) : 1,
                     'align'         => isset($rule_data['align']) ? sanitize_key($rule_data['align']) : 'center',
+                    // Campos de Site
                     'page_format'   => isset($rule_data['page_format']) ? sanitize_key($rule_data['page_format']) : 'popup',
                     'page_style'    => isset($rule_data['page_style']) ? sanitize_key($rule_data['page_style']) : 'dark',
+                    // Campos de Frequência
+                    'frequency_type' => isset($rule_data['frequency_type']) ? sanitize_key($rule_data['frequency_type']) : 'always',
+                    'frequency_time_value' => isset($rule_data['frequency_time_value']) ? intval($rule_data['frequency_time_value']) : 1,
+                    'frequency_time_unit' => isset($rule_data['frequency_time_unit']) ? sanitize_key($rule_data['frequency_time_unit']) : 'hours',
+                    'frequency_access_value' => isset($rule_data['frequency_access_value']) ? intval($rule_data['frequency_access_value']) : 5,
+                    // Onde Exibir
                     'post_types'    => isset($rule_data['post_types']) && is_array($rule_data['post_types']) ? array_map('sanitize_text_field', $rule_data['post_types']) : [],
                 ];
                 if ($sanitized_rule['bloco_id'] > 0) {
@@ -191,6 +198,10 @@ function meu_banner_render_rule_fields($index, $rule = []) {
                     <?php
                         $page_format = $rule['page_format'] ?? 'popup';
                         $page_style = $rule['page_style'] ?? 'dark';
+                        $frequency_type = $rule['frequency_type'] ?? 'always';
+                        $frequency_time_value = $rule['frequency_time_value'] ?? 1;
+                        $frequency_time_unit = $rule['frequency_time_unit'] ?? 'hours';
+                        $frequency_access_value = $rule['frequency_access_value'] ?? 5;
                     ?>
                     <tr>
                         <th scope="row"><label><?php _e('Formato', 'meu-banner'); ?></label></th>
@@ -208,6 +219,35 @@ function meu_banner_render_rule_fields($index, $rule = []) {
                                 <option value="dark" <?php selected($page_style, 'dark'); ?>><?php _e('Escuro (Dark)', 'meu-banner'); ?></option>
                                 <option value="light" <?php selected($page_style, 'light'); ?>><?php _e('Claro (Light)', 'meu-banner'); ?></option>
                             </select>
+                        </td>
+                    </tr>
+                    <!-- Nova Seção de Frequência -->
+                    <tr>
+                        <th scope="row"><label><?php _e('Frequência de Exibição', 'meu-banner'); ?></label></th>
+                        <td>
+                            <select name="rules[<?php echo esc_attr($index); ?>][frequency_type]" class="meu-banner-frequency-select">
+                                <option value="always" <?php selected($frequency_type, 'always'); ?>><?php _e('Mostrar sempre', 'meu-banner'); ?></option>
+                                <option value="time" <?php selected($frequency_type, 'time'); ?>><?php _e('Após um tempo', 'meu-banner'); ?></option>
+                                <option value="access" <?php selected($frequency_type, 'access'); ?>><?php _e('Após X páginas visitadas', 'meu-banner'); ?></option>
+                            </select>
+                        </td>
+                    </tr>
+                    <tr class="meu-banner-time-fields" style="display:none;">
+                        <th scope="row"><label><?php _e('Mostrar a cada', 'meu-banner'); ?></label></th>
+                        <td>
+                            <input type="number" min="1" style="width: 80px;" name="rules[<?php echo esc_attr($index); ?>][frequency_time_value]" value="<?php echo esc_attr($frequency_time_value); ?>">
+                            <select name="rules[<?php echo esc_attr($index); ?>][frequency_time_unit]">
+                                <option value="minutes" <?php selected($frequency_time_unit, 'minutes'); ?>><?php _e('Minutos', 'meu-banner'); ?></option>
+                                <option value="hours" <?php selected($frequency_time_unit, 'hours'); ?>><?php _e('Horas', 'meu-banner'); ?></option>
+                                <option value="days" <?php selected($frequency_time_unit, 'days'); ?>><?php _e('Dias', 'meu-banner'); ?></option>
+                            </select>
+                        </td>
+                    </tr>
+                    <tr class="meu-banner-access-fields" style="display:none;">
+                        <th scope="row"><label><?php _e('Mostrar a cada', 'meu-banner'); ?></label></th>
+                        <td>
+                            <input type="number" min="1" style="width: 80px;" name="rules[<?php echo esc_attr($index); ?>][frequency_access_value]" value="<?php echo esc_attr($frequency_access_value); ?>">
+                            <span><?php _e('páginas visitadas', 'meu-banner'); ?></span>
                         </td>
                     </tr>
                 <?php endif; ?>
@@ -293,8 +333,26 @@ function meu_banner_auto_insert_page_scripts() {
             positionSelect.addEventListener('change', toggleParagraphInput);
         }
 
-        // Inicializa para todas as regras de conteúdo já existentes
+        // --- LÓGICA DE CAMPOS DEPENDENTES (PARA REGRAS DE SITE - FREQUÊNCIA) ---
+        function initializeSiteRule(ruleElement) {
+            const frequencySelect = ruleElement.querySelector('.meu-banner-frequency-select');
+            if (!frequencySelect) return; // Só roda para regras de site
+
+            const timeFields = ruleElement.querySelector('.meu-banner-time-fields');
+            const accessFields = ruleElement.querySelector('.meu-banner-access-fields');
+
+            function toggleFrequencyFields() {
+                const selected = frequencySelect.value;
+                timeFields.style.display = (selected === 'time') ? 'table-row' : 'none';
+                accessFields.style.display = (selected === 'access') ? 'table-row' : 'none';
+            }
+            toggleFrequencyFields();
+            frequencySelect.addEventListener('change', toggleFrequencyFields);
+        }
+
+        // Inicializa para todas as regras já existentes
         document.querySelectorAll('#tab-content .meu-banner-rule').forEach(initializeContentRule);
+        document.querySelectorAll('#tab-site .meu-banner-rule').forEach(initializeSiteRule);
 
 
         // --- LÓGICA DE ADICIONAR NOVA REGRA ---
@@ -319,9 +377,11 @@ function meu_banner_auto_insert_page_scripts() {
             
             container.appendChild(newRuleElement);
 
-            // Se for uma regra de conteúdo, inicializa seus scripts
+            // Inicializa os scripts da nova regra
             if (type === 'content') {
                 initializeContentRule(newRuleElement);
+            } else if (type === 'site') {
+                initializeSiteRule(newRuleElement);
             }
         }
 

@@ -299,6 +299,7 @@ function meu_banner_set_custom_edit_columns($columns) {
         if ($key == 'title') {
             $new_columns['shortcode'] = __('Shortcode', 'meu-banner');
             $new_columns['total_views'] = __('Visualizações Totais', 'meu-banner');
+            $new_columns['report'] = __('Relatório', 'meu-banner'); // Nova coluna
         }
     }
     return $new_columns;
@@ -322,6 +323,11 @@ function meu_banner_custom_column($column, $post_id) {
         case 'total_views':
             $count = $wpdb->get_var($wpdb->prepare("SELECT COUNT(id) FROM $table_name WHERE bloco_id = %d", $post_id));
             echo absint($count);
+            break;
+
+        case 'report':
+            $report_url = admin_url('edit.php?post_type=meu_banner_bloco&page=meu_banner_report&bloco_id=' . $post_id);
+            echo '<a href="' . esc_url($report_url) . '" class="button">' . __('Ver Relatório', 'meu-banner') . '</a>';
             break;
     }
 }
@@ -373,39 +379,62 @@ function meu_banner_render_report_page() {
         wp_die(__('Bloco não encontrado.', 'meu-banner'));
     }
 
+    // Busca os dados de visualização agrupados por dia
     $results = $wpdb->get_results($wpdb->prepare(
-        "SELECT DATE_FORMAT(view_date, '%%d/%%m/%%Y') as dia, COUNT(id) as visualizacoes 
+        "SELECT DATE(view_date) as dia, COUNT(id) as visualizacoes 
          FROM $table_name 
          WHERE bloco_id = %d 
-         GROUP BY view_date 
-         ORDER BY view_date DESC",
+         GROUP BY DATE(view_date) 
+         ORDER BY dia ASC",
         $bloco_id
-    ));
+    ), OBJECT_K);
+
+    // Prepara o array de visualizações para fácil acesso
+    $views_by_date = [];
+    foreach ($results as $date => $row) {
+        $views_by_date[$date] = $row->visualizacoes;
+    }
+
+    // Determina a data de início (criação do bloco) e a data de fim (hoje)
+    $start_date = new DateTime($bloco->post_date);
+    $end_date = new DateTime('now');
+    $interval = new DateInterval('P1D');
+    $date_range = new DatePeriod($start_date, $interval, $end_date->modify('+1 day')); // Inclui o dia de hoje
+
     ?>
     <div class="wrap">
         <h1><?php _e('Relatório de Visualizações para:', 'meu-banner'); ?> "<?php echo esc_html($bloco->post_title); ?>"</h1>
-        <p><a href="<?php echo admin_url('edit.php?post_type=meu_banner_bloco'); ?>">← <?php _e('Voltar para a lista de blocos', 'meu-banner'); ?></a></p>
+        <p>
+            <a href="<?php echo admin_url('edit.php?post_type=meu_banner_bloco'); ?>">← <?php _e('Voltar para a lista de blocos', 'meu-banner'); ?></a>
+            <span style="float: right;">
+                <?php 
+                $reset_url = wp_nonce_url(admin_url('admin-post.php?action=meu_banner_reset_views&bloco_id=' . $bloco_id), 'meu_banner_reset_views_nonce');
+                ?>
+                <a href="<?php echo esc_url($reset_url); ?>" onclick="return confirm('<?php _e('Tem certeza que deseja zerar as visualizações deste bloco? Esta ação não pode ser desfeita.', 'meu-banner'); ?>');" class="button button-link-delete"><?php _e('Zerar Contagem', 'meu-banner'); ?></a>
+            </span>
+        </p>
         
-        <?php if ($results): ?>
         <table class="wp-list-table widefat fixed striped">
             <thead>
                 <tr>
-                    <th><?php _e('Data', 'meu-banner'); ?></th>
+                    <th style="width: 200px;"><?php _e('Data', 'meu-banner'); ?></th>
                     <th><?php _e('Visualizações', 'meu-banner'); ?></th>
                 </tr>
             </thead>
             <tbody>
-            <?php foreach ($results as $row): ?>
-                <tr>
-                    <td><?php echo esc_html($row->dia); ?></td>
-                    <td><?php echo number_format_i18n($row->visualizacoes); ?></td>
-                </tr>
-            <?php endforeach; ?>
+            <?php if (empty($date_range)): ?>
+                <tr><td colspan="2"><?php _e('Não há dados para exibir.', 'meu-banner'); ?></td></tr>
+            <?php else: ?>
+                <?php foreach (array_reverse(iterator_to_array($date_range)) as $date): // Inverte para mostrar do mais recente para o mais antigo ?>
+                    <?php $date_key = $date->format('Y-m-d'); ?>
+                    <tr>
+                        <td><?php echo $date->format('d/m/Y'); ?></td>
+                        <td><?php echo isset($views_by_date[$date_key]) ? number_format_i18n($views_by_date[$date_key]) : '0'; ?></td>
+                    </tr>
+                <?php endforeach; ?>
+            <?php endif; ?>
             </tbody>
         </table>
-        <?php else: ?>
-            <p><?php _e('Nenhuma visualização registrada para este bloco ainda.', 'meu-banner'); ?></p>
-        <?php endif; ?>
     </div>
     <?php
 }
@@ -427,7 +456,11 @@ function meu_banner_handle_reset_views_action() {
 
     $wpdb->delete($table_name, ['bloco_id' => $bloco_id], ['%d']);
 
-    $redirect_url = add_query_arg('message', 'views_reset', admin_url('edit.php?post_type=meu_banner_bloco'));
+    // Redireciona de volta para a página de onde o usuário veio (lista de blocos ou relatório)
+    $redirect_url = add_query_arg('message', 'views_reset', wp_get_referer());
+    if (!$redirect_url) {
+        $redirect_url = admin_url('edit.php?post_type=meu_banner_bloco');
+    }
     wp_redirect($redirect_url);
     exit;
 }
@@ -437,7 +470,7 @@ add_action('admin_post_meu_banner_reset_views', 'meu_banner_handle_reset_views_a
  * Exibe a notificação de sucesso após zerar as visualizações.
  */
 function meu_banner_show_reset_notice() {
-    if (isset($_GET['post_type']) && $_GET['post_type'] === 'meu_banner_bloco' && isset($_GET['message']) && $_GET['message'] === 'views_reset') {
+    if (isset($_GET['message']) && $_GET['message'] === 'views_reset') {
         echo '<div class="notice notice-success is-dismissible"><p>' . __('As visualizações foram zeradas com sucesso!', 'meu-banner') . '</p></div>';
     }
 }

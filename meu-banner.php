@@ -28,7 +28,18 @@ function meu_banner_activate() {
     global $wpdb;
     $table_name = $wpdb->prefix . 'meu_banner_views';
     $charset_collate = $wpdb->get_charset_collate();
-    $sql = "CREATE TABLE $table_name ( id mediumint(9) NOT NULL AUTO_INCREMENT, bloco_id bigint(20) UNSIGNED NOT NULL, view_date date NOT NULL, PRIMARY KEY  (id), KEY bloco_id (bloco_id), KEY view_date (view_date) ) $charset_collate;";
+    $sql = "CREATE TABLE $table_name (
+        id mediumint(9) NOT NULL AUTO_INCREMENT,
+        bloco_id bigint(20) UNSIGNED NOT NULL,
+        view_date date NOT NULL,
+        view_timestamp datetime NOT NULL,
+        user_ip varchar(45) NOT NULL,
+        PRIMARY KEY  (id),
+        KEY bloco_id (bloco_id),
+        KEY view_date (view_date),
+        KEY view_timestamp (view_timestamp),
+        KEY user_ip (user_ip)
+    ) $charset_collate;";
     require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
     dbDelta($sql);
 }
@@ -92,9 +103,23 @@ function meu_banner_is_bot() { $user_agent = isset($_SERVER['HTTP_USER_AGENT']) 
 /**
  * Rastreamento de Views via AJAX.
  */
-function meu_banner_track_view_ajax_handler() { check_ajax_referer('meu_banner_track_view_nonce', 'nonce'); if (meu_banner_is_bot()) { wp_send_json_error(['message' => 'Bot detected. View not tracked.']); return; } if (isset($_POST['bloco_id'])) { global $wpdb; $table_name = $wpdb->prefix . 'meu_banner_views'; $bloco_id = absint($_POST['bloco_id']); if (get_post_status($bloco_id) === 'publish') { $wpdb->insert($table_name, ['bloco_id'  => $bloco_id, 'view_date' => current_time('Y-m-d')], ['%d', '%s']); wp_send_json_success(['message' => 'View tracked.']); } else { wp_send_json_error(['message' => 'Invalid block.']); } } wp_send_json_error(['message' => 'Missing data.']); }
+function meu_banner_track_view_ajax_handler() { check_ajax_referer('meu_banner_track_view_nonce', 'nonce'); if (meu_banner_is_bot()) { wp_send_json_error(['message' => 'Bot detected. View not tracked.']); return; } if (isset($_POST['bloco_id'])) { global $wpdb; $table_name = $wpdb->prefix . 'meu_banner_views'; $bloco_id = absint($_POST['bloco_id']); $user_ip = meu_banner_get_user_ip(); if (get_post_status($bloco_id) === 'publish' && $user_ip) { $wpdb->insert($table_name, ['bloco_id'  => $bloco_id, 'view_date' => current_time('Y-m-d'), 'view_timestamp' => current_time('mysql'), 'user_ip' => $user_ip], ['%d', '%s', '%s', '%s']); wp_send_json_success(['message' => 'View tracked.']); } else { wp_send_json_error(['message' => 'Invalid block or IP.']); } } wp_send_json_error(['message' => 'Missing data.']); }
 add_action('wp_ajax_nopriv_meu_banner_track_view', 'meu_banner_track_view_ajax_handler');
 add_action('wp_ajax_meu_banner_track_view', 'meu_banner_track_view_ajax_handler');
+
+/**
+ * Função para obter o IP do usuário de forma segura.
+ */
+function meu_banner_get_user_ip() {
+    if (!empty($_SERVER['HTTP_CLIENT_IP'])) {
+        $ip = $_SERVER['HTTP_CLIENT_IP'];
+    } elseif (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+        $ip = $_SERVER['HTTP_X_FORWARDED_FOR'];
+    } else {
+        $ip = $_SERVER['REMOTE_ADDR'];
+    }
+    return filter_var($ip, FILTER_VALIDATE_IP);
+}
 
 // --- LÓGICA DE RENDERIZAÇÃO E INSERÇÃO ---
 
@@ -204,8 +229,8 @@ function meu_banner_render_page_banners() {
         $container_attrs = 'data-bloco-id="' . esc_attr($rule['bloco_id']) . '"';
 
         if ($format === 'popup' && !$has_rendered_popup) {
-            echo '<div class="meu-banner-page-container meu-banner-popup-overlay" ' . $container_attrs . '></div>';
-            echo '<div class="meu-banner-page-container meu-banner-popup-wrapper" role="dialog" aria-modal="true">';
+            echo '<div class="meu-banner-page-container meu-banner-popup-overlay"></div>';
+            echo '<div class="meu-banner-page-container meu-banner-popup-wrapper" role="dialog" aria-modal="true" data-bloco-id="' . esc_attr($rule['bloco_id']) . '">';
             echo $close_button_html;
             echo $banner_content_html;
             echo '</div>';
@@ -213,7 +238,7 @@ function meu_banner_render_page_banners() {
         }
 
         if ($format === 'sticky' && !$has_rendered_sticky) {
-            echo '<div class="meu-banner-page-container meu-banner-sticky-wrapper meu-banner-sticky-style-'.esc_attr($style).'" role="complementary">';
+            echo '<div class="meu-banner-page-container meu-banner-sticky-wrapper meu-banner-sticky-style-'.esc_attr($style).'" role="complementary" data-bloco-id="' . esc_attr($rule['bloco_id']) . '">';
             echo $banner_content_html;
             echo $close_button_html;
             echo '</div>';

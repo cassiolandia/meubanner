@@ -218,7 +218,11 @@ function meu_banner_render_page_banners() {
         $data = get_post_meta($rule['bloco_id'], '_meu_banner_data', true);
         if (empty($data)) { continue; }
         
-        $banner_content_html = meu_banner_get_content($data);
+        $bloco_data = get_post_meta($rule['bloco_id'], '_meu_banner_data', true);
+        if (empty($bloco_data)) {
+            continue;
+        }
+        $banner_content_html = meu_banner_get_content($bloco_data);
         if (empty($banner_content_html)) { continue; }
 
         $meu_banner_is_on_page = true;

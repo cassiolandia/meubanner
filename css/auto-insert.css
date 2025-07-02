@@ -184,7 +184,9 @@ body.meu-banner-popup-active {
     width: 100%;
     display: flex;
     justify-content: center;
-    background-color: #fff; /* Fundo padrão é branco para o container */
+    background-color: rgba(255, 255, 255, 0.80); /* Fundo com 85% de opacidade */
+    -webkit-backdrop-filter: blur(5px); /* Efeito de desfoque para navegadores Webkit */
+    backdrop-filter: blur(5px); /* Efeito de desfoque padrão */
     padding: 12px 20px;
     box-shadow: 0 -4px 15px rgba(0,0,0,0.08);
     transform: translateY(100%);

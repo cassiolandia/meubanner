@@ -8,11 +8,7 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        // Evita múltiplos rastreamentos para o mesmo banner na mesma sessão de página
-        if (sessionStorage.getItem('meu_banner_tracked_' + blocoId)) {
-            return;
-        }
-        sessionStorage.setItem('meu_banner_tracked_' + blocoId, 'true');
+        
 
         const data = new FormData();
         data.append('action', 'meu_banner_track_view');

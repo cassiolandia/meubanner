@@ -240,18 +240,22 @@ function meu_banner_save_meta_box_data($post_id) {
     if (!current_user_can('edit_post', $post_id)) {
         return;
     }
-    if (get_post_type($post_id) !== 'meu_banner_bloco') {
-        return;
-    }
 
-    $sanitized_data = [];
+    $old_data = get_post_meta($post_id, '_meu_banner_data', true);
     $raw_data = isset($_POST['meu_banner_data']) ? $_POST['meu_banner_data'] : [];
 
-    // *** NOVO: Salva o modo de exibição ***
+    $sanitized_data = is_array($old_data) ? $old_data : [];
+
     $sanitized_data['display_mode'] = isset($raw_data['display_mode']) && in_array($raw_data['display_mode'], ['geral', 'responsivo']) ? $raw_data['display_mode'] : 'geral';
 
-    // Sanitiza o checkbox de rastreamento
-    $sanitized_data['tracking_enabled'] = isset($raw_data['tracking_enabled']);
+    $is_tracking_enabled_now = isset($raw_data['tracking_enabled']);
+    $was_tracking_enabled = isset($old_data['tracking_enabled']) && $old_data['tracking_enabled'];
+
+    $sanitized_data['tracking_enabled'] = $is_tracking_enabled_now;
+
+    if ($is_tracking_enabled_now && !$was_tracking_enabled && empty($sanitized_data['tracking_start_date'])) {
+        $sanitized_data['tracking_start_date'] = current_time('Y-m-d');
+    }
 
     // Sanitiza os subgrupos e banners
     $sanitized_data['subgrupos'] = [];
@@ -347,20 +351,7 @@ function meu_banner_add_row_actions($actions, $post) {
 }
 add_filter('post_row_actions', 'meu_banner_add_row_actions', 10, 2);
 
-/**
- * Adiciona a página de relatório ao menu.
- */
-function meu_banner_add_admin_menu() {
-    add_submenu_page(
-        'edit.php?post_type=meu_banner_bloco', 
-        __('Relatório de Visualizações', 'meu-banner'),
-        __('Relatório', 'meu-banner'),
-        'edit_posts',
-        'meu_banner_report',
-        'meu_banner_render_report_page'
-    );
-}
-add_action('admin_menu', 'meu_banner_add_admin_menu');
+
 
 /**
  * Renderiza a página de relatório.
@@ -379,14 +370,19 @@ function meu_banner_render_report_page() {
         wp_die(__('Bloco não encontrado.', 'meu-banner'));
     }
 
+    $data = get_post_meta($bloco_id, '_meu_banner_data', true);
+    $tracking_enabled = !empty($data['tracking_enabled']);
+    $start_date_str = $data['tracking_start_date'] ?? $bloco->post_date;
+
     // Busca os dados de visualização agrupados por dia
     $results = $wpdb->get_results($wpdb->prepare(
         "SELECT DATE(view_date) as dia, COUNT(id) as visualizacoes 
          FROM $table_name 
-         WHERE bloco_id = %d 
+         WHERE bloco_id = %d AND view_date >= %s
          GROUP BY DATE(view_date) 
          ORDER BY dia ASC",
-        $bloco_id
+        $bloco_id,
+        $start_date_str
     ), OBJECT_K);
 
     // Prepara o array de visualizações para fácil acesso
@@ -395,24 +391,32 @@ function meu_banner_render_report_page() {
         $views_by_date[$date] = $row->visualizacoes;
     }
 
-    // Determina a data de início (criação do bloco) e a data de fim (hoje)
-    $start_date = new DateTime($bloco->post_date);
-    $end_date = new DateTime('now');
+    // Determina a data de início e a data de fim (hoje)
+    $start_date = new DateTime($start_date_str);
+    $end_date = new DateTime('tomorrow'); // Define o fim para a meia-noite de amanhã para incluir hoje
     $interval = new DateInterval('P1D');
-    $date_range = new DatePeriod($start_date, $interval, $end_date->modify('+1 day')); // Inclui o dia de hoje
+    $date_range = new DatePeriod($start_date, $interval, $end_date);
 
     ?>
     <div class="wrap">
         <h1><?php _e('Relatório de Visualizações para:', 'meu-banner'); ?> "<?php echo esc_html($bloco->post_title); ?>"</h1>
-        <p>
-            <a href="<?php echo admin_url('edit.php?post_type=meu_banner_bloco'); ?>">← <?php _e('Voltar para a lista de blocos', 'meu-banner'); ?></a>
-            <span style="float: right;">
-                <?php 
-                $reset_url = wp_nonce_url(admin_url('admin-post.php?action=meu_banner_reset_views&bloco_id=' . $bloco_id), 'meu_banner_reset_views_nonce');
-                ?>
-                <a href="<?php echo esc_url($reset_url); ?>" onclick="return confirm('<?php _e('Tem certeza que deseja zerar as visualizações deste bloco? Esta ação não pode ser desfeita.', 'meu-banner'); ?>');" class="button button-link-delete"><?php _e('Zerar Contagem', 'meu-banner'); ?></a>
-            </span>
-        </p>
+        
+        <div style="margin: 20px 0; padding: 15px; border: 1px solid #ccd0d4; background: #f6f7f7; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <strong><?php _e('Status do Rastreamento:', 'meu-banner'); ?></strong>
+                <span style="color: <?php echo $tracking_enabled ? '#228B22' : '#DC143C'; ?>; font-weight: bold; margin-left: 10px;">
+                    <?php echo $tracking_enabled ? __('Ativo', 'meu-banner') : __('Inativo', 'meu-banner'); ?>
+                </span>
+                <a href="<?php echo wp_nonce_url(admin_url('admin-post.php?action=meu_banner_toggle_tracking&bloco_id=' . $bloco_id), 'meu_banner_toggle_tracking_nonce'); ?>" class="button button-secondary" style="margin-left: 15px;">
+                    <?php echo $tracking_enabled ? __('Desativar', 'meu-banner') : __('Ativar', 'meu-banner'); ?>
+                </a>
+            </div>
+            <div>
+                <a href="<?php echo wp_nonce_url(admin_url('admin-post.php?action=meu_banner_reset_views&bloco_id=' . $bloco_id), 'meu_banner_reset_views_nonce'); ?>" onclick="return confirm('<?php _e('Tem certeza que deseja zerar as visualizações deste bloco? Esta ação não pode ser desfeita.', 'meu-banner'); ?>');" class="button button-link-delete"><?php _e('Zerar Contagem', 'meu-banner'); ?></a>
+            </div>
+        </div>
+
+        <p><a href="<?php echo admin_url('edit.php?post_type=meu_banner_bloco'); ?>">← <?php _e('Voltar para a lista de blocos', 'meu-banner'); ?></a></p>
         
         <table class="wp-list-table widefat fixed striped">
             <thead>
@@ -425,7 +429,7 @@ function meu_banner_render_report_page() {
             <?php if (empty($date_range)): ?>
                 <tr><td colspan="2"><?php _e('Não há dados para exibir.', 'meu-banner'); ?></td></tr>
             <?php else: ?>
-                <?php foreach (array_reverse(iterator_to_array($date_range)) as $date): // Inverte para mostrar do mais recente para o mais antigo ?>
+                <?php foreach (array_reverse(iterator_to_array($date_range)) as $date): ?>
                     <?php $date_key = $date->format('Y-m-d'); ?>
                     <tr>
                         <td><?php echo $date->format('d/m/Y'); ?></td>
@@ -456,6 +460,12 @@ function meu_banner_handle_reset_views_action() {
 
     $wpdb->delete($table_name, ['bloco_id' => $bloco_id], ['%d']);
 
+    $data = get_post_meta($bloco_id, '_meu_banner_data', true);
+    if (is_array($data)) {
+        $data['tracking_start_date'] = current_time('Y-m-d');
+        update_post_meta($bloco_id, '_meu_banner_data', $data);
+    }
+
     // Redireciona de volta para a página de onde o usuário veio (lista de blocos ou relatório)
     $redirect_url = add_query_arg('message', 'views_reset', wp_get_referer());
     if (!$redirect_url) {
@@ -465,6 +475,35 @@ function meu_banner_handle_reset_views_action() {
     exit;
 }
 add_action('admin_post_meu_banner_reset_views', 'meu_banner_handle_reset_views_action');
+
+/**
+ * Manipula a ação de ativar/desativar o rastreamento a partir da página de relatório.
+ */
+function meu_banner_toggle_tracking_action() {
+    if (!isset($_GET['bloco_id']) || !isset($_GET['_wpnonce']) || !wp_verify_nonce($_GET['_wpnonce'], 'meu_banner_toggle_tracking_nonce')) {
+        wp_die(__('Ação inválida ou falha de segurança.', 'meu-banner'));
+    }
+    if (!current_user_can('edit_posts')) {
+        wp_die(__('Você não tem permissão para fazer isso.', 'meu-banner'));
+    }
+
+    $bloco_id = absint($_GET['bloco_id']);
+    $data = get_post_meta($bloco_id, '_meu_banner_data', true);
+
+    if (is_array($data)) {
+        $data['tracking_enabled'] = empty($data['tracking_enabled']);
+
+        if ($data['tracking_enabled'] && empty($data['tracking_start_date'])) {
+            $data['tracking_start_date'] = current_time('Y-m-d');
+        }
+
+        update_post_meta($bloco_id, '_meu_banner_data', $data);
+    }
+
+    wp_redirect(wp_get_referer());
+    exit;
+}
+add_action('admin_post_meu_banner_toggle_tracking', 'meu_banner_toggle_tracking_action');
 
 /**
  * Exibe a notificação de sucesso após zerar as visualizações.

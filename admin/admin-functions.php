@@ -346,7 +346,7 @@ add_filter('post_row_actions', 'meu_banner_add_row_actions', 10, 2);
  */
 function meu_banner_add_admin_menu() {
     add_submenu_page(
-        null, 
+        'edit.php?post_type=meu_banner_bloco', 
         __('Relatório de Visualizações', 'meu-banner'),
         __('Relatório', 'meu-banner'),
         'edit_posts',

@@ -302,7 +302,7 @@ function meu_banner_set_custom_edit_columns($columns) {
         $new_columns[$key] = $title;
         if ($key == 'title') {
             $new_columns['shortcode'] = __('Shortcode', 'meu-banner');
-            $new_columns['total_views'] = __('Visualizações Totais', 'meu-banner');
+            $new_columns['total_views'] = __('Visualizações', 'meu-banner');
             $new_columns['report'] = __('Relatório', 'meu-banner'); // Nova coluna
         }
     }
@@ -314,9 +314,6 @@ add_filter('manage_meu_banner_bloco_posts_columns', 'meu_banner_set_custom_edit_
  * Exibe o conteúdo das colunas personalizadas.
  */
 function meu_banner_custom_column($column, $post_id) {
-    global $wpdb;
-    $table_name = $wpdb->prefix . 'meu_banner_views';
-
     switch ($column) {
         case 'shortcode':
             $post_slug = get_post_field('post_name', $post_id);
@@ -325,8 +322,21 @@ function meu_banner_custom_column($column, $post_id) {
             break;
 
         case 'total_views':
-            $count = $wpdb->get_var($wpdb->prepare("SELECT COUNT(id) FROM $table_name WHERE bloco_id = %d", $post_id));
-            echo absint($count);
+            $daily_counts = get_post_meta($post_id, 'meu_banner_daily_views', true);
+            if (!is_array($daily_counts)) {
+                $daily_counts = [];
+            }
+
+            $today_str = current_time('Y-m-d');
+            $yesterday_str = date('Y-m-d', strtotime('-1 day', strtotime($today_str)));
+
+            $today_views = isset($daily_counts[$today_str]) ? $daily_counts[$today_str] : 0;
+            $yesterday_views = isset($daily_counts[$yesterday_str]) ? $daily_counts[$yesterday_str] : 0;
+            $total_views = array_sum($daily_counts);
+
+            echo '<strong>Hoje:</strong> ' . number_format_i18n($today_views) . '<br>';
+            echo '<strong>Ontem:</strong> ' . number_format_i18n($yesterday_views) . '<br>';
+            echo '<strong>Total:</strong> ' . number_format_i18n($total_views);
             break;
 
         case 'report':
@@ -354,15 +364,13 @@ add_filter('post_row_actions', 'meu_banner_add_row_actions', 10, 2);
 
 
 /**
- * Renderiza a página de relatório.
+ * Renderiza a página de relatório com contagens diárias.
  */
 function meu_banner_render_report_page() {
     if (!isset($_GET['bloco_id']) || !current_user_can('edit_posts')) {
         wp_die(__('Acesso inválido.', 'meu-banner'));
     }
 
-    global $wpdb;
-    $table_name = $wpdb->prefix . 'meu_banner_views';
     $bloco_id = absint($_GET['bloco_id']);
     $bloco = get_post($bloco_id);
 
@@ -372,30 +380,11 @@ function meu_banner_render_report_page() {
 
     $data = get_post_meta($bloco_id, '_meu_banner_data', true);
     $tracking_enabled = !empty($data['tracking_enabled']);
-    $start_date_str = $data['tracking_start_date'] ?? $bloco->post_date;
-
-    // Busca os dados de visualização agrupados por dia
-    $results = $wpdb->get_results($wpdb->prepare(
-        "SELECT DATE(view_date) as dia, COUNT(id) as visualizacoes 
-         FROM $table_name 
-         WHERE bloco_id = %d AND view_date >= %s
-         GROUP BY DATE(view_date) 
-         ORDER BY dia ASC",
-        $bloco_id,
-        $start_date_str
-    ), OBJECT_K);
-
-    // Prepara o array de visualizações para fácil acesso
-    $views_by_date = [];
-    foreach ($results as $date => $row) {
-        $views_by_date[$date] = $row->visualizacoes;
+    $daily_counts = get_post_meta($bloco_id, 'meu_banner_daily_views', true);
+    if (!is_array($daily_counts)) {
+        $daily_counts = [];
     }
-
-    // Determina a data de início e a data de fim (hoje)
-    $start_date = new DateTime($start_date_str);
-    $end_date = new DateTime('tomorrow'); // Define o fim para a meia-noite de amanhã para incluir hoje
-    $interval = new DateInterval('P1D');
-    $date_range = new DatePeriod($start_date, $interval, $end_date);
+    krsort($daily_counts); // Ordena por data, da mais recente para a mais antiga
 
     ?>
     <div class="wrap">
@@ -426,14 +415,13 @@ function meu_banner_render_report_page() {
                 </tr>
             </thead>
             <tbody>
-            <?php if (empty($date_range)): ?>
-                <tr><td colspan="2"><?php _e('Não há dados para exibir.', 'meu-banner'); ?></td></tr>
+            <?php if (empty($daily_counts)): ?>
+                <tr><td colspan="2"><?php _e('Ainda não há visualizações registradas.', 'meu-banner'); ?></td></tr>
             <?php else: ?>
-                <?php foreach (array_reverse(iterator_to_array($date_range)) as $date): ?>
-                    <?php $date_key = $date->format('Y-m-d'); ?>
+                <?php foreach ($daily_counts as $date => $count): ?>
                     <tr>
-                        <td><?php echo $date->format('d/m/Y'); ?></td>
-                        <td><?php echo isset($views_by_date[$date_key]) ? number_format_i18n($views_by_date[$date_key]) : '0'; ?></td>
+                        <td><?php echo date_i18n('d/m/Y', strtotime($date)); ?></td>
+                        <td><?php echo number_format_i18n($count); ?></td>
                     </tr>
                 <?php endforeach; ?>
             <?php endif; ?>
@@ -444,7 +432,7 @@ function meu_banner_render_report_page() {
 }
 
 /**
- * Manipula a ação de zerar as visualizações.
+ * Manipula a ação de zerar as visualizações (versão com contagem diária).
  */
 function meu_banner_handle_reset_views_action() {
     if (!isset($_GET['bloco_id']) || !isset($_GET['_wpnonce']) || !wp_verify_nonce($_GET['_wpnonce'], 'meu_banner_reset_views_nonce')) {
@@ -454,19 +442,12 @@ function meu_banner_handle_reset_views_action() {
         wp_die(__('Você não tem permissão para fazer isso.', 'meu-banner'));
     }
 
-    global $wpdb;
-    $table_name = $wpdb->prefix . 'meu_banner_views';
     $bloco_id = absint($_GET['bloco_id']);
 
-    $wpdb->delete($table_name, ['bloco_id' => $bloco_id], ['%d']);
+    // Deleta o metadado com as contagens diárias.
+    delete_post_meta($bloco_id, 'meu_banner_daily_views');
 
-    $data = get_post_meta($bloco_id, '_meu_banner_data', true);
-    if (is_array($data)) {
-        $data['tracking_start_date'] = current_time('Y-m-d');
-        update_post_meta($bloco_id, '_meu_banner_data', $data);
-    }
-
-    // Redireciona de volta para a página de onde o usuário veio (lista de blocos ou relatório)
+    // Redireciona de volta para a página de onde o usuário veio.
     $redirect_url = add_query_arg('message', 'views_reset', wp_get_referer());
     if (!$redirect_url) {
         $redirect_url = admin_url('edit.php?post_type=meu_banner_bloco');
@@ -516,6 +497,29 @@ function meu_banner_show_reset_notice() {
 add_action('admin_notices', 'meu_banner_show_reset_notice');
 
 
+
+/**
+ * Adiciona a página de relatório ao menu do CPT.
+ */
+function meu_banner_add_report_page() {
+    add_submenu_page(
+        'edit.php?post_type=meu_banner_bloco', // Slug do menu pai (CPT)
+        __('Relatório de Visualizações', 'meu-banner'), // Título da página
+        __('Relatório', 'meu-banner'), // Título do menu
+        'edit_posts', // Capacidade
+        'meu_banner_report', // Slug da página
+        'meu_banner_render_report_page' // Função de renderização
+    );
+}
+add_action('admin_menu', 'meu_banner_add_report_page');
+
+/**
+ * Oculta a página de relatório do menu com CSS.
+ */
+function meu_banner_hide_report_page_css() {
+    echo '<style>#adminmenu a[href="edit.php?post_type=meu_banner_bloco&page=meu_banner_report"] { display: none; }</style>';
+}
+add_action('admin_head', 'meu_banner_hide_report_page_css');
 
 /**
  * Adiciona a página de "Inserção Automática" ao menu do plugin.

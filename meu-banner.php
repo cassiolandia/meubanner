@@ -21,29 +21,7 @@ define('MEU_BANNER_PLUGIN_URL', plugin_dir_url(__FILE__));
 require_once MEU_BANNER_PLUGIN_DIR . 'admin/admin-functions.php';
 require_once MEU_BANNER_PLUGIN_DIR . 'admin/auto-insert-page.php';
 
-/**
- * Função de ativação do plugin: cria a tabela de rastreamento.
- */
-function meu_banner_activate() {
-    global $wpdb;
-    $table_name = $wpdb->prefix . 'meu_banner_views';
-    $charset_collate = $wpdb->get_charset_collate();
-    $sql = "CREATE TABLE $table_name (
-        id mediumint(9) NOT NULL AUTO_INCREMENT,
-        bloco_id bigint(20) UNSIGNED NOT NULL,
-        view_date date NOT NULL,
-        view_timestamp datetime NOT NULL,
-        user_ip varchar(45) NOT NULL,
-        PRIMARY KEY  (id),
-        KEY bloco_id (bloco_id),
-        KEY view_date (view_date),
-        KEY view_timestamp (view_timestamp),
-        KEY user_ip (user_ip)
-    ) $charset_collate;";
-    require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
-    dbDelta($sql);
-}
-register_activation_hook(__FILE__, 'meu_banner_activate');
+
 
 /**
  * Registra o Custom Post Type para os Blocos de Anúncios.
@@ -101,25 +79,51 @@ function meu_banner_render_html($banner, $subgroup_key) {
 function meu_banner_is_bot() { $user_agent = isset($_SERVER['HTTP_USER_AGENT']) ? strtolower($_SERVER['HTTP_USER_AGENT']) : ''; if (empty($user_agent)) { return true; } $bot_signatures = [ 'bot', 'crawl', 'slurp', 'spider', 'archiver', 'googlebot', 'bingbot', 'yandexbot', 'duckduckbot', 'baiduspider', 'facebookexternalhit', 'twitterbot', 'rogerbot', 'linkedinbot', 'embedly', 'quora link preview', 'showyoubot', 'outbrain', 'pinterest', 'developers.google.com/+/web/snippet', 'wget', 'curl', 'semrushbot', 'ahrefsbot', 'mj12bot' ]; foreach ($bot_signatures as $signature) { if (strpos($user_agent, $signature) !== false) { return true; } } return false; }
 
 /**
- * Rastreamento de Views via AJAX.
+ * Manipulador AJAX para rastrear visualizações de banner (versão com contagem diária otimizada).
  */
-function meu_banner_track_view_ajax_handler() { check_ajax_referer('meu_banner_track_view_nonce', 'nonce'); if (meu_banner_is_bot()) { wp_send_json_error(['message' => 'Bot detected. View not tracked.']); return; } if (isset($_POST['bloco_id'])) { global $wpdb; $table_name = $wpdb->prefix . 'meu_banner_views'; $bloco_id = absint($_POST['bloco_id']); $user_ip = meu_banner_get_user_ip(); if (get_post_status($bloco_id) === 'publish' && $user_ip) { $wpdb->insert($table_name, ['bloco_id'  => $bloco_id, 'view_date' => current_time('Y-m-d'), 'view_timestamp' => current_time('mysql'), 'user_ip' => $user_ip], ['%d', '%s', '%s', '%s']); wp_send_json_success(['message' => 'View tracked.']); } else { wp_send_json_error(['message' => 'Invalid block or IP.']); } } wp_send_json_error(['message' => 'Missing data.']); }
+function meu_banner_track_view_ajax_handler() {
+    check_ajax_referer('meu_banner_track_view_nonce', 'nonce');
+
+    if (meu_banner_is_bot()) {
+        wp_send_json_error(['message' => 'Bot detected. View not tracked.']);
+        return;
+    }
+
+    if (isset($_POST['bloco_id'])) {
+        $bloco_id = absint($_POST['bloco_id']);
+
+        if (get_post_status($bloco_id) === 'publish') {
+            $today = current_time('Y-m-d');
+            
+            // Obtém o array de contagens diárias
+            $daily_counts = get_post_meta($bloco_id, 'meu_banner_daily_views', true);
+            if (!is_array($daily_counts)) {
+                $daily_counts = [];
+            }
+
+            // Incrementa a contagem para o dia de hoje
+            if (isset($daily_counts[$today])) {
+                $daily_counts[$today]++;
+            } else {
+                $daily_counts[$today] = 1;
+            }
+
+            // Salva o array atualizado
+            update_post_meta($bloco_id, 'meu_banner_daily_views', $daily_counts);
+            
+            wp_send_json_success(['message' => 'Daily view tracked.']);
+        } else {
+            wp_send_json_error(['message' => 'Invalid block ID.']);
+        }
+        return;
+    }
+
+    wp_send_json_error(['message' => 'Missing data.']);
+}
 add_action('wp_ajax_nopriv_meu_banner_track_view', 'meu_banner_track_view_ajax_handler');
 add_action('wp_ajax_meu_banner_track_view', 'meu_banner_track_view_ajax_handler');
 
-/**
- * Função para obter o IP do usuário de forma segura.
- */
-function meu_banner_get_user_ip() {
-    if (!empty($_SERVER['HTTP_CLIENT_IP'])) {
-        $ip = $_SERVER['HTTP_CLIENT_IP'];
-    } elseif (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
-        $ip = $_SERVER['HTTP_X_FORWARDED_FOR'];
-    } else {
-        $ip = $_SERVER['REMOTE_ADDR'];
-    }
-    return filter_var($ip, FILTER_VALIDATE_IP);
-}
+
 
 // --- LÓGICA DE RENDERIZAÇÃO E INSERÇÃO ---
 

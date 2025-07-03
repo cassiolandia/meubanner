@@ -50,6 +50,27 @@
         max-width: 100%;
     }
 }
+
+/* --- Estilos de Responsividade para Conteúdo Interno --- */
+
+/* Garante que o conteúdo do banner (seja imagem ou outro) seja responsivo */
+.meu-banner-item,
+.meu-banner-item > div { /* Cobre o caso de código HTML dentro do item */
+    max-width: 100%;
+}
+
+/* Garante que as imagens dentro de qualquer banner não ultrapassem o contêiner */
+.meu-banner-item img {
+    max-width: 100%;
+    height: auto;
+    display: block; /* Remove espaços extras abaixo da imagem */
+}
+
+/* Força a imagem a ocupar 100% da largura APENAS em banners de conteúdo (shortcode/auto-insert) */
+.meu-banner-wrapper .meu-banner-item img {
+    width: 100%;
+}
+
 /* --- Estilos do Botão Fechar --- */
 
 /* Torna o wrapper o container de posicionamento para o botão */
@@ -199,7 +220,10 @@ body.meu-banner-popup-active {
 /* O conteúdo interno do banner no Sticky */
 .meu-banner-sticky-wrapper .meu-banner-item {
     flex-grow: 1; /* Ocupa o espaço disponível */
-    text-align: center;
+    display: flex; /* Transforma em contêiner flexível */
+    justify-content: center; /* Centraliza horizontalmente */
+    align-items: center; /* Centraliza verticalmente (opcional, mas bom para banners) */
+    text-align: center; /* Mantém para compatibilidade com texto */
 }
 
 /* Botão de fechar do Sticky (agora posicionado ao lado do conteúdo) */

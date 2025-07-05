@@ -139,54 +139,64 @@ $meu_banner_needs_tracking_script = false;
 /**
  * Função auxiliar para obter o CONTEÚDO de um banner (sem wrapper).
  */
-function meu_banner_get_content($data) {
+function meu_banner_render_block($bloco_id, $align = 'center') {
+    global $meu_banner_needs_tracking_script, $meu_banner_is_on_page;
+
+    if (!$bloco_id) {
+        return '<!-- Meu Banner: Bloco não encontrado -->';
+    }
+
+    $data = get_post_meta($bloco_id, '_meu_banner_data', true);
+    if (empty($data) || !is_array($data)) {
+        return '<!-- Meu Banner: Bloco sem configuração -->';
+    }
+
+    // Lógica interna para obter o conteúdo do banner (desktop/mobile/geral)
     $subgrupos = isset($data['subgrupos']) ? $data['subgrupos'] : [];
-    $output = '';
+    $banner_content_html = '';
     $display_mode = isset($data['display_mode']) ? $data['display_mode'] : 'geral';
-    
+    $close_button_html = "<button type='button' class='meu-banner-close-btn' aria-label='Fechar Anúncio'>×</button>";
+
+    $render_banner_with_close_button = function($banner, $subgroup_key) use ($close_button_html) {
+        if (!$banner) return '';
+        $html = meu_banner_render_html($banner, $subgroup_key);
+        if ($html) {
+            // Insere o botão de fechar ANTES do </div> de fechamento do .meu-banner-item
+            return preg_replace('/(<\/div>)$/i', $close_button_html . '$1', $html, 1);
+        }
+        return '';
+    };
+
     if ($display_mode === 'geral' && !empty($subgrupos['geral'])) {
         $banner = meu_banner_get_weighted_random_banner($subgrupos['geral']);
-        $output .= meu_banner_render_html($banner, 'geral');
+        $banner_content_html .= $render_banner_with_close_button($banner, 'geral');
     } elseif ($display_mode === 'responsivo') {
-        if (!empty($subgrupos['desktop'])) { 
+        if (!empty($subgrupos['desktop'])) {
             $banner_desktop = meu_banner_get_weighted_random_banner($subgrupos['desktop']);
-            $output .= meu_banner_render_html($banner_desktop, 'desktop'); 
+            $banner_content_html .= $render_banner_with_close_button($banner_desktop, 'desktop');
         }
-        if (!empty($subgrupos['mobile'])) { 
+        if (!empty($subgrupos['mobile'])) {
             $banner_mobile = meu_banner_get_weighted_random_banner($subgrupos['mobile']);
-            $output .= meu_banner_render_html($banner_mobile, 'mobile'); 
+            $banner_content_html .= $render_banner_with_close_button($banner_mobile, 'mobile');
         }
     }
-    return $output;
-}
 
-/**
- * Manipulador do shortcode, usado para banners INLINE.
- */
-function meu_banner_shortcode_handler($atts) {
-    global $meu_banner_needs_tracking_script, $meu_banner_is_on_page;
-    $atts = shortcode_atts(['id' => 0, 'name' => '', 'align' => ''], $atts, 'meu_banner');
-    $bloco_id = 0;
-    if (!empty($atts['id'])) { $bloco_id = absint($atts['id']); } elseif (!empty($atts['name'])) { $post = get_page_by_path($atts['name'], OBJECT, 'meu_banner_bloco'); if ($post) { $bloco_id = $post->ID; } }
-    if (!$bloco_id) { return '<!-- Meu Banner: Bloco não encontrado -->'; }
-    $data = get_post_meta($bloco_id, '_meu_banner_data', true);
-    if (empty($data) || !is_array($data)) { return '<!-- Meu Banner: Bloco sem configuração -->'; }
-    
-    $banner_content_html = meu_banner_get_content($data);
-    if (empty($banner_content_html)) { return '<!-- Meu Banner: Nenhum banner ativo ou completo para este bloco -->'; }
+    if (empty($banner_content_html)) {
+        return '<!-- Meu Banner: Nenhum banner ativo ou completo para este bloco -->';
+    }
 
     $meu_banner_is_on_page = true;
     $tracking_enabled = !empty($data['tracking_enabled']);
-    $wrapper_classes = ['meu-banner-wrapper'];
-    if (!empty($atts['align'])) { $wrapper_classes[] = 'meu-banner-align-' . sanitize_html_class($atts['align']); }
 
-    // Lógica de visibilidade para o wrapper
-    $display_mode = $data['display_mode'] ?? 'geral';
+    // Construção do Wrapper
+    $wrapper_classes = ['meu-banner-wrapper'];
+    if (!empty($align)) {
+        $wrapper_classes[] = 'meu-banner-align-' . sanitize_html_class($align);
+    }
+
     if ($display_mode === 'responsivo') {
-        $subgrupos = $data['subgrupos'] ?? [];
         $has_desktop = !empty($subgrupos['desktop']);
         $has_mobile = !empty($subgrupos['mobile']);
-
         if ($has_desktop && !$has_mobile) {
             $wrapper_classes[] = 'hide-on-mobile';
         } elseif (!$has_desktop && $has_mobile) {
@@ -200,85 +210,105 @@ function meu_banner_shortcode_handler($atts) {
         $wrapper_attrs_str .= ' data-bloco-id="' . esc_attr($bloco_id) . '"';
         $meu_banner_needs_tracking_script = true;
     }
-    $close_button_html = "<button type='button' class='meu-banner-close-btn' aria-label='Fechar Anúncio'>×</button>";
-    $output = "<div {$wrapper_attrs_str}>{$close_button_html}{$banner_content_html}</div>";
-    return $output;
+
+    return "<div {$wrapper_attrs_str}>{$banner_content_html}</div>";
+}
+
+/**
+ * Manipulador do shortcode, agora usando a função unificada.
+ */
+function meu_banner_shortcode_handler($atts) {
+    $atts = shortcode_atts([
+        'id'   => 0,
+        'name' => '',
+        'align' => 'center',
+    ], $atts, 'meu_banner');
+
+    $bloco_id = 0;
+    if (!empty($atts['id'])) {
+        $bloco_id = absint($atts['id']);
+    } elseif (!empty($atts['name'])) {
+        $post = get_page_by_path($atts['name'], OBJECT, 'meu_banner_bloco');
+        if ($post) {
+            $bloco_id = $post->ID;
+        }
+    }
+
+    return meu_banner_render_block($bloco_id, $atts['align']);
 }
 add_shortcode('meu_banner', 'meu_banner_shortcode_handler');
 
 /**
  * Insere banners INLINE no conteúdo.
  */
-function meu_banner_auto_insert_content($content) { 
-    if (!is_singular() || !in_the_loop() || !is_main_query()) { 
-        return $content; 
-    } 
-    
-    $all_rules = get_option('meu_banner_auto_insert_rules', []); 
-    if (empty($all_rules)) { 
-        return $content; 
-    } 
-    
-    $current_post_type = get_post_type(); 
-    $placements = []; 
-    $before_content_html = ''; 
-    $after_content_html = ''; 
-    
-    foreach ($all_rules as $rule) { 
-        // Processa apenas regras de conteúdo que estão habilitadas
-        if (empty($rule['enabled']) || 
-            empty($rule['bloco_id']) || 
-            ($rule['insertion_type'] !== 'content') || 
-            empty($rule['post_types']) || 
-            !in_array($current_post_type, $rule['post_types'])) { 
-            continue; 
-        } 
-        
-        $banner_shortcode = sprintf('[meu_banner id="%d" align="%s"]', intval($rule['bloco_id']), esc_attr($rule['align'])); 
-        $banner_html = do_shortcode($banner_shortcode);         
-        
-        if (empty($banner_html) || strpos($banner_html, '<!-- Meu Banner:') === 0) { 
-            continue; 
-        } 
-        
-        switch ($rule['position']) { 
-            case 'before_content': 
-                $before_content_html .= $banner_html; 
-                break; 
-            case 'after_content': 
-                $after_content_html .= $banner_html; 
-                break; 
-            case 'after_paragraph': 
-                if (!empty($rule['paragraph_num'])) { 
-                    $p_num = intval($rule['paragraph_num']); 
-                    if (!isset($placements[$p_num])) { 
-                        $placements[$p_num] = ''; 
-                    } 
-                    $placements[$p_num] .= $banner_html; 
-                } 
-                break; 
-        } 
-    } 
-    
-    if (!empty($placements)) { 
-        $paragraphs = preg_split('/(<\/p>)/i', $content, -1, PREG_SPLIT_NO_EMPTY | PREG_SPLIT_DELIM_CAPTURE); 
-        $new_content = ''; 
-        $p_counter = 0; 
-        
-        for ($i = 0; $i < count($paragraphs); $i += 2) { 
-            $paragraph_content = $paragraphs[$i]; 
-            $paragraph_delimiter = isset($paragraphs[$i + 1]) ? $paragraphs[$i + 1] : ''; 
-            $new_content .= $paragraph_content . $paragraph_delimiter; 
-            $p_counter++; 
-            
-            if (isset($placements[$p_counter])) { 
-                $new_content .= $placements[$p_counter]; 
-            } 
-        } 
-        $content = $new_content; 
-    } 
-    
-    return $before_content_html . $content . $after_content_html; 
+function meu_banner_auto_insert_content($content) {
+    if (!is_singular() || !in_the_loop() || !is_main_query()) {
+        return $content;
+    }
+
+    $all_rules = get_option('meu_banner_auto_insert_rules', []);
+    if (empty($all_rules)) {
+        return $content;
+    }
+
+    $current_post_type = get_post_type();
+    $placements = [];
+    $before_content_html = '';
+    $after_content_html = '';
+
+    foreach ($all_rules as $rule) {
+        if (empty($rule['enabled']) ||
+            empty($rule['bloco_id']) ||
+            ($rule['insertion_type'] !== 'content') ||
+            empty($rule['post_types']) ||
+            !in_array($current_post_type, $rule['post_types'])) {
+            continue;
+        }
+
+        $banner_html = meu_banner_render_block(intval($rule['bloco_id']), esc_attr($rule['align']));
+
+        if (empty($banner_html) || strpos($banner_html, '<!-- Meu Banner:') === 0) {
+            continue;
+        }
+
+        switch ($rule['position']) {
+            case 'before_content':
+                $before_content_html .= $banner_html;
+                break;
+            case 'after_content':
+                $after_content_html .= $banner_html;
+                break;
+            case 'after_paragraph':
+                if (!empty($rule['paragraph_num'])) {
+                    $p_num = intval($rule['paragraph_num']);
+                    if (!isset($placements[$p_num])) {
+                        $placements[$p_num] = '';
+                    }
+                    $placements[$p_num] .= $banner_html;
+                }
+                break;
+        }
+    }
+
+    if (!empty($placements)) {
+        $paragraphs = preg_split('/(<\/p>)/i', $content, -1, PREG_SPLIT_NO_EMPTY | PREG_SPLIT_DELIM_CAPTURE);
+        $new_content = '';
+        $p_counter = 0;
+
+        for ($i = 0; $i < count($paragraphs); $i += 2) {
+            $paragraph_content = $paragraphs[$i];
+            $paragraph_delimiter = isset($paragraphs[$i + 1]) ? $paragraphs[$i + 1] : '';
+            $new_content .= $paragraph_content . $paragraph_delimiter;
+            $p_counter++;
+
+            if (isset($placements[$p_counter])) {
+                $new_content .= $placements[$p_counter];
+            }
+        }
+        $content = $new_content;
+    }
+
+    return $before_content_html . $content . $after_content_html;
 }
 add_filter('the_content', 'meu_banner_auto_insert_content', 99);
 

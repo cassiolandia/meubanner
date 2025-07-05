@@ -70,12 +70,22 @@ document.addEventListener('DOMContentLoaded', function () {
     // --- FUNÇÕES DE CONTROLE DO BANNER ---
     function closeBanner(wrapper) {
         if (!wrapper) return;
-        frequencyChecker.registerClose(wrapper);
-        wrapper.classList.remove('is-visible');
-        if (wrapper.classList.contains('meu-banner-popup-wrapper')) {
-            const overlay = document.querySelector('.meu-banner-popup-overlay');
-            if(overlay) overlay.classList.remove('is-visible');
-            document.body.classList.remove('meu-banner-popup-active');
+
+        // Apenas registra o fechamento para banners de página (popup/sticky)
+        if (wrapper.classList.contains('meu-banner-page-container')) {
+            frequencyChecker.registerClose(wrapper);
+            wrapper.classList.remove('is-visible');
+            
+            if (wrapper.classList.contains('meu-banner-popup-wrapper')) {
+                const overlay = document.querySelector('.meu-banner-popup-overlay');
+                if(overlay) overlay.classList.remove('is-visible');
+                document.body.classList.remove('meu-banner-popup-active');
+            }
+        } else if (wrapper.classList.contains('meu-banner-wrapper')) {
+            // Para banners de conteúdo (shortcode/auto-insert), simplesmente remove o elemento.
+            wrapper.style.transition = 'opacity 0.3s ease';
+            wrapper.style.opacity = '0';
+            setTimeout(() => wrapper.remove(), 300);
         }
     }
 

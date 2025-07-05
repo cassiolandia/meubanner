@@ -78,36 +78,30 @@
     position: relative;
 }
 
-/* Estilo do botão 'X' */
+/* Estilo base do botão 'X' com SVG */
 .meu-banner-close-btn {
     position: absolute;
     top: 5px;
     right: 5px;
-    z-index: 99; /* Garante que o botão fique sobre o conteúdo do banner */
-    
-    /* Aparência */
-    background-color: rgba(0, 0, 0, 0.5);
-    color: #fff;
-    border: none;
-    border-radius: 50%; /* Faz o botão ficar redondo */
-    cursor: pointer;
-    font-family: Arial, sans-serif;
-    font-size: 16px;
-    font-weight: bold;
-    
-    /* Tamanho e alinhamento do 'X' */
+    z-index: 99;
     width: 24px;
     height: 24px;
-    line-height: 24px;
-    text-align: center;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
     padding: 0;
-    
+    background-color: rgba(0, 0, 0, 0.5);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ffffff'%3E%3Cpath d='M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z'/%3E%3C/svg%3E");
+    background-size: 60%;
+    background-position: center;
+    background-repeat: no-repeat;
     transition: background-color 0.2s ease;
 }
 
 .meu-banner-close-btn:hover {
     background-color: rgba(0, 0, 0, 0.8);
 }
+
 /*
 ==========================================================================
   ESTILOS PROFISSIONAIS PARA BANNERS DE PÁGINA (POPUP E STICKY)
@@ -169,27 +163,23 @@
     height: auto;
 }
 
-/* O Botão de Fechar do Popup (Agora posicionado fora do wrapper interno) */
+/* O Botão de Fechar do Popup com SVG */
 .meu-banner-popup-wrapper .meu-banner-close-btn {
     position: absolute;
     top: -15px;
     right: -15px;
     width: 32px;
     height: 32px;
-    line-height: 30px;
-    font-size: 24px;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
     background-color: #fff;
-    color: #333;
-    border-radius: 50%;
-    border: none;
-    cursor: pointer;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23333333'%3E%3Cpath d='M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z'/%3E%3C/svg%3E");
+    background-size: 50%;
     box-shadow: 0 4px 10px rgba(0,0,0,0.2);
     transition: all 0.2s ease-in-out;
 }
 .meu-banner-popup-wrapper .meu-banner-close-btn:hover {
     transform: scale(1.1) rotate(90deg);
     background-color: #f1f1f1;
+    box-shadow: 0 6px 15px rgba(0,0,0,0.25);
 }
 
 /* Bloqueia o scroll da página quando o popup está ativo */
@@ -205,6 +195,7 @@ body.meu-banner-popup-active {
     width: 100%;
     display: flex;
     justify-content: center;
+    align-items: center; /* Garante alinhamento vertical */
     background-color: rgba(255, 255, 255, 0.6);
     -webkit-backdrop-filter: blur(5px);
     backdrop-filter: blur(5px);
@@ -219,43 +210,43 @@ body.meu-banner-popup-active {
 
 /* O conteúdo interno do banner no Sticky */
 .meu-banner-sticky-wrapper .meu-banner-item {
-    flex-grow: 1; /* Ocupa o espaço disponível */
-    display: flex; /* Transforma em contêiner flexível */
-    justify-content: center; /* Centraliza horizontalmente */
-    align-items: center; /* Centraliza verticalmente (opcional, mas bom para banners) */
-    text-align: center; /* Mantém para compatibilidade com texto */
+    flex-grow: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
 }
 
-/* Botão de fechar do Sticky (agora posicionado ao lado do conteúdo) */
+/* Botão de fechar do Sticky com SVG */
 .meu-banner-sticky-wrapper .meu-banner-close-btn {
-    position: static; /* Remove posicionamento absoluto */
-    background: transparent;
-    color: #888;
+    position: static;
     width: 30px;
     height: 30px;
-    line-height: 30px;
-    font-size: 28px;
-    font-weight: 300;
+    background-color: transparent;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23888888'%3E%3Cpath d='M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z'/%3E%3C/svg%3E");
+    background-size: 80%;
     border-radius: 4px;
-    margin-left: 15px; /* Espaço entre o banner e o botão */
-    flex-shrink: 0; /* Impede que o botão encolha */
-    transition: background-color 0.2s, color 0.2s;
+    margin-left: 15px;
+    flex-shrink: 0;
+    transition: background-color 0.2s;
 }
 .meu-banner-sticky-wrapper .meu-banner-close-btn:hover {
     background-color: #f0f0f0;
-    color: #333;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23333333'%3E%3Cpath d='M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z'/%3E%3C/svg%3E");
 }
 
 /* --- Estilos Predefinidos (Light/Dark) para Sticky --- */
 .meu-banner-sticky-style-dark {
-    background-color: #1e293b; /* Um azul escuro mais moderno */
+    background-color: rgba(30, 41, 59, 0.6); /* Azul escuro com opacidade */
+    -webkit-backdrop-filter: blur(5px); /* Efeito de desfoque para o fundo */
+    backdrop-filter: blur(5px);
 }
 .meu-banner-sticky-style-dark .meu-banner-close-btn {
-    color: #94a3b8;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2394a3b8'%3E%3Cpath d='M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z'/%3E%3C/svg%3E");
 }
 .meu-banner-sticky-style-dark .meu-banner-close-btn:hover {
-    color: #fff;
     background-color: #334155;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ffffff'%3E%3Cpath d='M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z'/%3E%3C/svg%3E");
 }
 
 /* Em telas pequenas, o botão do sticky pode ficar muito grande */

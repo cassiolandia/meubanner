@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Meu Banner
  * Description:       Um plugin para gerenciar blocos de anúncios com suporte a banners em subgrupos, exibição via shortcode e inserção automática.
- * Version:           1.3.1
+ * Version:           1.3.2
  * Author:            Seu Nome
  * Requires at least: 6.0
  * Requires PHP:      7.4
@@ -60,13 +60,18 @@ function meu_banner_render_html($banner, $subgroup_key) {
     $inner_html = '';
     if ($banner['type'] === 'html' && !empty($banner['content'])) {
         $inner_html = wp_kses_post($banner['content']);
-    } elseif ($banner['type'] === 'image' && !empty($banner['image_id']) && !empty($banner['url'])) {
+    } elseif ($banner['type'] === 'image' && !empty($banner['image_id'])) {
         $image_id = absint($banner['image_id']);
         $image_url = wp_get_attachment_image_url($image_id, 'full');
         $image_alt = get_post_meta($image_id, '_wp_attachment_image_alt', true);
         $link_url = esc_url($banner['url']);
-        if ($image_url && $link_url) {
-            $inner_html = sprintf('<a href="%s" target="_blank" rel="noreferrer nofollow"><img src="%s" alt="%s"></a>', $link_url, esc_url($image_url), esc_attr($image_alt));
+        if ($image_url) {
+            $img_tag = sprintf('<img src="%s" alt="%s">', esc_url($image_url), esc_attr($image_alt));
+            if (!empty($link_url)) {
+                $inner_html = sprintf('<a href="%s" target="_blank" rel="noreferrer nofollow">%s</a>', $link_url, $img_tag);
+            } else {
+                $inner_html = $img_tag;
+            }
         }
     }
     if (empty($inner_html)) { return ''; }
@@ -143,8 +148,14 @@ function meu_banner_get_content($data) {
         $banner = meu_banner_get_weighted_random_banner($subgrupos['geral']);
         $output .= meu_banner_render_html($banner, 'geral');
     } elseif ($display_mode === 'responsivo') {
-        if (!empty($subgrupos['desktop'])) { $output .= meu_banner_render_html(meu_banner_get_weighted_random_banner($subgrupos['desktop']), 'desktop'); }
-        if (!empty($subgrupos['mobile'])) { $output .= meu_banner_render_html(meu_banner_get_weighted_random_banner($subgrupos['mobile']), 'mobile'); }
+        if (!empty($subgrupos['desktop'])) { 
+            $banner_desktop = meu_banner_get_weighted_random_banner($subgrupos['desktop']);
+            $output .= meu_banner_render_html($banner_desktop, 'desktop'); 
+        }
+        if (!empty($subgrupos['mobile'])) { 
+            $banner_mobile = meu_banner_get_weighted_random_banner($subgrupos['mobile']);
+            $output .= meu_banner_render_html($banner_mobile, 'mobile'); 
+        }
     }
     return $output;
 }
@@ -190,14 +201,85 @@ function meu_banner_shortcode_handler($atts) {
         $meu_banner_needs_tracking_script = true;
     }
     $close_button_html = "<button type='button' class='meu-banner-close-btn' aria-label='Fechar Anúncio'>×</button>";
-    return "<div {$wrapper_attrs_str}>{$close_button_html}{$banner_content_html}</div>";
+    $output = "<div {$wrapper_attrs_str}>{$close_button_html}{$banner_content_html}</div>";
+    return $output;
 }
 add_shortcode('meu_banner', 'meu_banner_shortcode_handler');
 
 /**
  * Insere banners INLINE no conteúdo.
  */
-function meu_banner_auto_insert_content($content) { if (!is_singular() || !in_the_loop() || !is_main_query()) { return $content; } $all_rules = get_option('meu_banner_auto_insert_rules', []); if (empty($all_rules)) { return $content; } $current_post_type = get_post_type(); $placements = []; $before_content_html = ''; $after_content_html = ''; foreach ($all_rules as $rule) { if (empty($rule['enabled']) || empty($rule['bloco_id']) || ($rule['insertion_type'] !== 'content') || empty($rule['post_types']) || !in_array($current_post_type, $rule['post_types'])) { continue; } $banner_shortcode = sprintf('[meu_banner id="%d" align="%s"]', intval($rule['bloco_id']), esc_attr($rule['align'])); $banner_html = do_shortcode($banner_shortcode);         if (!is_string($banner_html) || strpos($banner_html, 'meu-banner-item') === false) { continue; } switch ($rule['position']) { case 'before_content': $before_content_html .= $banner_html; break; case 'after_content': $after_content_html .= $banner_html; break; case 'after_paragraph': if (!empty($rule['paragraph_num'])) { $p_num = intval($rule['paragraph_num']); if (!isset($placements[$p_num])) { $placements[$p_num] = ''; } $placements[$p_num] .= $banner_html; } break; } } if (!empty($placements)) { $paragraphs = preg_split('/(<\/p>)/i', $content, -1, PREG_SPLIT_NO_EMPTY | PREG_SPLIT_DELIM_CAPTURE); $new_content = ''; $p_counter = 0; for ($i = 0; $i < count($paragraphs); $i += 2) { $paragraph_content = $paragraphs[$i]; $paragraph_delimiter = isset($paragraphs[$i + 1]) ? $paragraphs[$i + 1] : ''; $new_content .= $paragraph_content . $paragraph_delimiter; $p_counter++; if (isset($placements[$p_counter])) { $new_content .= $placements[$p_counter]; } } $content = $new_content; } return $before_content_html . $content . $after_content_html; }
+function meu_banner_auto_insert_content($content) { 
+    if (!is_singular() || !in_the_loop() || !is_main_query()) { 
+        return $content; 
+    } 
+    
+    $all_rules = get_option('meu_banner_auto_insert_rules', []); 
+    if (empty($all_rules)) { 
+        return $content; 
+    } 
+    
+    $current_post_type = get_post_type(); 
+    $placements = []; 
+    $before_content_html = ''; 
+    $after_content_html = ''; 
+    
+    foreach ($all_rules as $rule) { 
+        // Processa apenas regras de conteúdo que estão habilitadas
+        if (empty($rule['enabled']) || 
+            empty($rule['bloco_id']) || 
+            ($rule['insertion_type'] !== 'content') || 
+            empty($rule['post_types']) || 
+            !in_array($current_post_type, $rule['post_types'])) { 
+            continue; 
+        } 
+        
+        $banner_shortcode = sprintf('[meu_banner id="%d" align="%s"]', intval($rule['bloco_id']), esc_attr($rule['align'])); 
+        $banner_html = do_shortcode($banner_shortcode);         
+        
+        if (empty($banner_html) || strpos($banner_html, '<!-- Meu Banner:') === 0) { 
+            continue; 
+        } 
+        
+        switch ($rule['position']) { 
+            case 'before_content': 
+                $before_content_html .= $banner_html; 
+                break; 
+            case 'after_content': 
+                $after_content_html .= $banner_html; 
+                break; 
+            case 'after_paragraph': 
+                if (!empty($rule['paragraph_num'])) { 
+                    $p_num = intval($rule['paragraph_num']); 
+                    if (!isset($placements[$p_num])) { 
+                        $placements[$p_num] = ''; 
+                    } 
+                    $placements[$p_num] .= $banner_html; 
+                } 
+                break; 
+        } 
+    } 
+    
+    if (!empty($placements)) { 
+        $paragraphs = preg_split('/(<\/p>)/i', $content, -1, PREG_SPLIT_NO_EMPTY | PREG_SPLIT_DELIM_CAPTURE); 
+        $new_content = ''; 
+        $p_counter = 0; 
+        
+        for ($i = 0; $i < count($paragraphs); $i += 2) { 
+            $paragraph_content = $paragraphs[$i]; 
+            $paragraph_delimiter = isset($paragraphs[$i + 1]) ? $paragraphs[$i + 1] : ''; 
+            $new_content .= $paragraph_content . $paragraph_delimiter; 
+            $p_counter++; 
+            
+            if (isset($placements[$p_counter])) { 
+                $new_content .= $placements[$p_counter]; 
+            } 
+        } 
+        $content = $new_content; 
+    } 
+    
+    return $before_content_html . $content . $after_content_html; 
+}
 add_filter('the_content', 'meu_banner_auto_insert_content', 99);
 
 /**
@@ -207,20 +289,39 @@ function meu_banner_render_page_banners() {
     global $meu_banner_is_on_page, $meu_banner_needs_tracking_script;
 
     $all_rules = get_option('meu_banner_auto_insert_rules', []);
-    if (empty($all_rules)) { return; }
+    if (empty($all_rules)) { 
+        return; 
+    }
 
     // Lógica para determinar o contexto de exibição atual
     $display_context = [];
-    if (is_front_page() || is_home()) { $display_context[] = 'home'; }
-    if (is_archive() || is_category() || is_tag()) { $display_context[] = 'archive'; }
-    if (is_singular()) { $display_context[] = get_post_type(); }
+    if (is_front_page() || is_home()) { 
+        $display_context[] = 'home'; 
+    }
+    if (is_archive() || is_category() || is_tag()) { 
+        $display_context[] = 'archive'; 
+    }
+    if (is_singular()) { 
+        $display_context[] = get_post_type(); 
+    }
     
     $has_rendered_popup = false;
     $has_rendered_sticky = false;
     $close_button_html = "<button type='button' class='meu-banner-close-btn' aria-label='Fechar Anúncio'>×</button>";
 
     foreach ($all_rules as $rule) {
-        if (empty($rule['enabled']) || empty($rule['bloco_id']) || ($rule['insertion_type'] !== 'page') || empty($rule['post_types'])) {
+        // Verifica se a regra está habilitada e tem os campos necessários
+        if (empty($rule['enabled']) || empty($rule['bloco_id']) || empty($rule['post_types'])) {
+            continue;
+        }
+
+        // CORREÇÃO: Processa apenas regras de página (popup/sticky)
+        if ($rule['insertion_type'] !== 'page') {
+            continue;
+        }
+
+        // Verifica se o formato da página é válido para regras de página
+        if (!in_array($rule['page_format'], ['popup', 'sticky'])) {
             continue;
         }
 
@@ -230,17 +331,20 @@ function meu_banner_render_page_banners() {
             $display = true;
         } else {
             foreach ($display_context as $context) {
-                if (in_array($context, $rule['post_types'])) { $display = true; break; }
+                if (in_array($context, $rule['post_types'])) { 
+                    $display = true; 
+                    break; 
+                }
             }
         }
-        if (!$display) { continue; }
+        
+        if (!$display) { 
+            continue; 
+        }
         
         $data = get_post_meta($rule['bloco_id'], '_meu_banner_data', true);
-        if (empty($data)) { continue; }
-        
-        $bloco_data = get_post_meta($rule['bloco_id'], '_meu_banner_data', true);
-        if (empty($bloco_data)) {
-            continue;
+        if (empty($data)) { 
+            continue; 
         }
 
         // Gera o conteúdo do banner e determina as classes de visibilidade do container
@@ -248,8 +352,8 @@ function meu_banner_render_page_banners() {
         $mobile_html = '';
         $banner_content_html = '';
         $visibility_classes = '';
-        $display_mode = $bloco_data['display_mode'] ?? 'geral';
-        $subgrupos = $bloco_data['subgrupos'] ?? [];
+        $display_mode = $data['display_mode'] ?? 'geral';
+        $subgrupos = $data['subgrupos'] ?? [];
 
         if ($display_mode === 'geral' && !empty($subgrupos['geral'])) {
             $banner_content_html = meu_banner_render_html(meu_banner_get_weighted_random_banner($subgrupos['geral']), 'geral');
@@ -270,13 +374,17 @@ function meu_banner_render_page_banners() {
             }
         } else {
             // Fallback para blocos antigos sem o modo de exibição definido
-            $banner_content_html = meu_banner_get_content($bloco_data);
+            $banner_content_html = meu_banner_get_content($data);
         }
         
-        if (empty($banner_content_html)) { continue; }
+        if (empty($banner_content_html)) { 
+            continue; 
+        }
 
         $meu_banner_is_on_page = true;
-        if (!empty($data['tracking_enabled'])) { $meu_banner_needs_tracking_script = true; }
+        if (!empty($data['tracking_enabled'])) { 
+            $meu_banner_needs_tracking_script = true; 
+        }
 
         $format = $rule['page_format'] ?? 'popup';
         $style = $rule['page_style'] ?? 'dark';
@@ -301,6 +409,7 @@ function meu_banner_render_page_banners() {
             $container_attrs .= $key . '="' . $value . '" ';
         }
 
+        // Renderiza popup se ainda não foi renderizado
         if ($format === 'popup' && !$has_rendered_popup) {
             echo '<div class="meu-banner-page-container meu-banner-popup-overlay' . esc_attr($visibility_classes) . '"></div>';
             echo '<div class="meu-banner-page-container meu-banner-popup-wrapper' . esc_attr($visibility_classes) . '" role="dialog" aria-modal="true" ' . $container_attrs . '>';
@@ -310,6 +419,7 @@ function meu_banner_render_page_banners() {
             $has_rendered_popup = true;
         }
 
+        // Renderiza sticky se ainda não foi renderizado
         if ($format === 'sticky' && !$has_rendered_sticky) {
             $sticky_classes = 'meu-banner-page-container meu-banner-sticky-wrapper meu-banner-sticky-style-' . esc_attr($style) . esc_attr($visibility_classes);
             echo '<div class="' . $sticky_classes . '" role="complementary" ' . $container_attrs . '>';
@@ -329,10 +439,10 @@ function meu_banner_enqueue_frontend_assets() {
     global $meu_banner_is_on_page, $meu_banner_needs_tracking_script;
 
     if ($meu_banner_is_on_page) {
-        wp_enqueue_style('meu-banner-frontend-styles', MEU_BANNER_PLUGIN_URL . 'css/auto-insert.css', [], '1.3.1');
-        wp_enqueue_script('meu-banner-frontend-script', MEU_BANNER_PLUGIN_URL . 'js/frontend-banner.js', [], '1.3.1', true);
+        wp_enqueue_style('meu-banner-frontend-styles', MEU_BANNER_PLUGIN_URL . 'css/auto-insert.css', [], '1.3.2');
+        wp_enqueue_script('meu-banner-frontend-script', MEU_BANNER_PLUGIN_URL . 'js/frontend-banner.js', [], '1.3.2', true);
         if ($meu_banner_needs_tracking_script) {
-            wp_enqueue_script('meu-banner-tracker', MEU_BANNER_PLUGIN_URL . 'js/tracker.js', [], '1.3.1', true);
+            wp_enqueue_script('meu-banner-tracker', MEU_BANNER_PLUGIN_URL . 'js/tracker.js', [], '1.3.2', true);
             wp_localize_script('meu-banner-tracker', 'meuBannerAjax', ['ajax_url' => admin_url('admin-ajax.php'), 'nonce' => wp_create_nonce('meu_banner_track_view_nonce'),]);
         }
     }

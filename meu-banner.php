@@ -2,8 +2,8 @@
 /**
  * Plugin Name:       Meu Banner
  * Description:       Um plugin para gerenciar blocos de anúncios com suporte a banners em subgrupos, exibição via shortcode e inserção automática.
- * Version:           1.3.2
- * Author:            Seu Nome
+ * Version:           1.4
+ * Author:            Cássio
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Text Domain:       meu-banner

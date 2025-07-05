@@ -168,6 +168,22 @@ function meu_banner_shortcode_handler($atts) {
     $tracking_enabled = !empty($data['tracking_enabled']);
     $wrapper_classes = ['meu-banner-wrapper'];
     if (!empty($atts['align'])) { $wrapper_classes[] = 'meu-banner-align-' . sanitize_html_class($atts['align']); }
+
+    // Lógica de visibilidade para o wrapper
+    $display_mode = $data['display_mode'] ?? 'geral';
+    if ($display_mode === 'responsivo') {
+        $subgrupos = $data['subgrupos'] ?? [];
+        $has_desktop = !empty($subgrupos['desktop']);
+        $has_mobile = !empty($subgrupos['mobile']);
+
+        if ($has_desktop && !$has_mobile) {
+            $wrapper_classes[] = 'hide-on-mobile';
+        } elseif (!$has_desktop && $has_mobile) {
+            $wrapper_classes[] = 'hide-on-desktop';
+            $wrapper_classes[] = 'hide-on-tablet';
+        }
+    }
+
     $wrapper_attrs_str = 'class="' . esc_attr(implode(' ', $wrapper_classes)) . '"';
     if ($tracking_enabled) {
         $wrapper_attrs_str .= ' data-bloco-id="' . esc_attr($bloco_id) . '"';
@@ -226,7 +242,37 @@ function meu_banner_render_page_banners() {
         if (empty($bloco_data)) {
             continue;
         }
-        $banner_content_html = meu_banner_get_content($bloco_data);
+
+        // Gera o conteúdo do banner e determina as classes de visibilidade do container
+        $desktop_html = '';
+        $mobile_html = '';
+        $banner_content_html = '';
+        $visibility_classes = '';
+        $display_mode = $bloco_data['display_mode'] ?? 'geral';
+        $subgrupos = $bloco_data['subgrupos'] ?? [];
+
+        if ($display_mode === 'geral' && !empty($subgrupos['geral'])) {
+            $banner_content_html = meu_banner_render_html(meu_banner_get_weighted_random_banner($subgrupos['geral']), 'geral');
+        } elseif ($display_mode === 'responsivo') {
+            if (!empty($subgrupos['desktop'])) {
+                $desktop_html = meu_banner_render_html(meu_banner_get_weighted_random_banner($subgrupos['desktop']), 'desktop');
+            }
+            if (!empty($subgrupos['mobile'])) {
+                $mobile_html = meu_banner_render_html(meu_banner_get_weighted_random_banner($subgrupos['mobile']), 'mobile');
+            }
+            $banner_content_html = $desktop_html . $mobile_html;
+
+            // Adiciona classes ao container se apenas um tipo de banner (desktop ou mobile) existir
+            if (!empty($desktop_html) && empty($mobile_html)) {
+                $visibility_classes = ' hide-on-mobile';
+            } elseif (empty($desktop_html) && !empty($mobile_html)) {
+                $visibility_classes = ' hide-on-desktop hide-on-tablet';
+            }
+        } else {
+            // Fallback para blocos antigos sem o modo de exibição definido
+            $banner_content_html = meu_banner_get_content($bloco_data);
+        }
+        
         if (empty($banner_content_html)) { continue; }
 
         $meu_banner_is_on_page = true;
@@ -256,8 +302,8 @@ function meu_banner_render_page_banners() {
         }
 
         if ($format === 'popup' && !$has_rendered_popup) {
-            echo '<div class="meu-banner-page-container meu-banner-popup-overlay"></div>';
-            echo '<div class="meu-banner-page-container meu-banner-popup-wrapper" role="dialog" aria-modal="true" ' . $container_attrs . '>';
+            echo '<div class="meu-banner-page-container meu-banner-popup-overlay' . esc_attr($visibility_classes) . '"></div>';
+            echo '<div class="meu-banner-page-container meu-banner-popup-wrapper' . esc_attr($visibility_classes) . '" role="dialog" aria-modal="true" ' . $container_attrs . '>';
             echo $close_button_html;
             echo $banner_content_html;
             echo '</div>';
@@ -265,7 +311,8 @@ function meu_banner_render_page_banners() {
         }
 
         if ($format === 'sticky' && !$has_rendered_sticky) {
-            echo '<div class="meu-banner-page-container meu-banner-sticky-wrapper meu-banner-sticky-style-'.esc_attr($style).'" role="complementary" ' . $container_attrs . '>';
+            $sticky_classes = 'meu-banner-page-container meu-banner-sticky-wrapper meu-banner-sticky-style-' . esc_attr($style) . esc_attr($visibility_classes);
+            echo '<div class="' . $sticky_classes . '" role="complementary" ' . $container_attrs . '>';
             echo $banner_content_html;
             echo $close_button_html;
             echo '</div>';

@@ -53,12 +53,17 @@ document.addEventListener('DOMContentLoaded', function() {
         entries.forEach(entry => {
             if (entry.isIntersecting) {
                 const bannerElement = entry.target;
-                const blocoId = bannerElement.dataset.blocoId;
-                if (blocoId) {
-                    trackBannerView(blocoId);
+                const bannerItem = bannerElement.querySelector('.meu-banner-item');
+
+                // Rastreia apenas se o conteúdo interno do banner estiver visível
+                if (bannerItem && window.getComputedStyle(bannerItem).display !== 'none') {
+                    const blocoId = bannerElement.dataset.blocoId;
+                    if (blocoId) {
+                        trackBannerView(blocoId);
+                    }
+                    // Uma vez rastreado, não precisa mais observar
+                    observer.unobserve(bannerElement);
                 }
-                // Uma vez rastreado, não precisa mais observar
-                observer.unobserve(bannerElement);
             }
         });
     }, observerOptions);

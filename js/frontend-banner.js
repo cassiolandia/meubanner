@@ -83,6 +83,12 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!wrapper || !frequencyChecker.shouldShow(wrapper)) {
             return;
         }
+
+        // Verifica se o conteúdo real do banner está visível (não oculto por CSS responsivo)
+        const bannerItem = wrapper.querySelector('.meu-banner-item');
+        if (!bannerItem || window.getComputedStyle(bannerItem).display === 'none') {
+            return; // Não mostra o popup/sticky se o banner interno estiver oculto
+        }
         
         const delay = wrapper.classList.contains('meu-banner-popup-wrapper') ? 1500 : 1000;
 

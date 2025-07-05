@@ -323,48 +323,29 @@ function meu_banner_render_page_banners() {
         return; 
     }
 
-    // Lógica para determinar o contexto de exibição atual
-    $display_context = [];
-    if (is_front_page() || is_home()) { 
-        $display_context[] = 'home'; 
-    }
-    if (is_archive() || is_category() || is_tag()) { 
-        $display_context[] = 'archive'; 
-    }
-    if (is_singular()) { 
-        $display_context[] = get_post_type(); 
-    }
-    
+    $is_home = is_front_page() || is_home();
+
     $has_rendered_popup = false;
     $has_rendered_sticky = false;
     $close_button_html = "<button type='button' class='meu-banner-close-btn' aria-label='Fechar Anúncio'>×</button>";
 
     foreach ($all_rules as $rule) {
-        // Verifica se a regra está habilitada e tem os campos necessários
-        if (empty($rule['enabled']) || empty($rule['bloco_id']) || empty($rule['post_types'])) {
+        if (empty($rule['enabled']) || empty($rule['bloco_id']) || empty($rule['post_types']) || $rule['insertion_type'] !== 'page' || !in_array($rule['page_format'], ['popup', 'sticky'])) {
             continue;
         }
 
-        // CORREÇÃO: Processa apenas regras de página (popup/sticky)
-        if ($rule['insertion_type'] !== 'page') {
-            continue;
-        }
-
-        // Verifica se o formato da página é válido para regras de página
-        if (!in_array($rule['page_format'], ['popup', 'sticky'])) {
-            continue;
-        }
-
-        // Verifica a condição de exibição
         $display = false;
-        if (in_array('all_site', $rule['post_types'])) {
+        $rule_post_types = $rule['post_types'];
+
+        if (in_array('all_site', $rule_post_types)) {
             $display = true;
-        } else {
-            foreach ($display_context as $context) {
-                if (in_array($context, $rule['post_types'])) { 
-                    $display = true; 
-                    break; 
-                }
+        } elseif ($is_home && in_array('home', $rule_post_types)) {
+            $display = true;
+        } elseif (!$is_home) {
+            if (is_singular() && in_array(get_post_type(), $rule_post_types)) {
+                $display = true;
+            } elseif ((is_archive() || is_category() || is_tag()) && in_array('archive', $rule_post_types)) {
+                $display = true;
             }
         }
         
@@ -396,14 +377,12 @@ function meu_banner_render_page_banners() {
             }
             $banner_content_html = $desktop_html . $mobile_html;
 
-            // Adiciona classes ao container se apenas um tipo de banner (desktop ou mobile) existir
             if (!empty($desktop_html) && empty($mobile_html)) {
                 $visibility_classes = ' hide-on-mobile';
             } elseif (empty($desktop_html) && !empty($mobile_html)) {
                 $visibility_classes = ' hide-on-desktop hide-on-tablet';
             }
         } else {
-            // Fallback para blocos antigos sem o modo de exibição definido
             $banner_content_html = meu_banner_get_content($data);
         }
         
@@ -419,7 +398,6 @@ function meu_banner_render_page_banners() {
         $format = $rule['page_format'] ?? 'popup';
         $style = $rule['page_style'] ?? 'dark';
         
-        // Prepara os atributos do container, incluindo os de frequência
         $container_attrs_arr = [
             'data-bloco-id' => esc_attr($rule['bloco_id']),
             'data-frequency-type' => esc_attr($rule['frequency_type'] ?? 'always'),
@@ -439,7 +417,6 @@ function meu_banner_render_page_banners() {
             $container_attrs .= $key . '="' . $value . '" ';
         }
 
-        // Renderiza popup se ainda não foi renderizado
         if ($format === 'popup' && !$has_rendered_popup) {
             echo '<div class="meu-banner-page-container meu-banner-popup-overlay' . esc_attr($visibility_classes) . '"></div>';
             echo '<div class="meu-banner-page-container meu-banner-popup-wrapper' . esc_attr($visibility_classes) . '" role="dialog" aria-modal="true" ' . $container_attrs . '>';
@@ -449,7 +426,6 @@ function meu_banner_render_page_banners() {
             $has_rendered_popup = true;
         }
 
-        // Renderiza sticky se ainda não foi renderizado
         if ($format === 'sticky' && !$has_rendered_sticky) {
             $sticky_classes = 'meu-banner-page-container meu-banner-sticky-wrapper meu-banner-sticky-style-' . esc_attr($style) . esc_attr($visibility_classes);
             echo '<div class="' . $sticky_classes . '" role="complementary" ' . $container_attrs . '>';

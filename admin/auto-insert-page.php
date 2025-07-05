@@ -262,6 +262,10 @@ function meu_banner_render_rule_fields($index, $rule = []) {
                                 <input type="checkbox" name="rules[<?php echo esc_attr($index); ?>][post_types][]" value="all_site" <?php checked(in_array('all_site', $selected_post_types)); ?>>
                                 <?php _e('Todo o Site', 'meu-banner'); ?>
                             </label>
+                            <label style="margin-right: 15px; font-weight: bold;">
+                                <input type="checkbox" name="rules[<?php echo esc_attr($index); ?>][post_types][]" value="home" <?php checked(in_array('home', $selected_post_types)); ?>>
+                                <?php _e('Página Inicial', 'meu-banner'); ?>
+                            </label>
                             <br>
                             <?php endif; ?>
 

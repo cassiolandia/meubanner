@@ -1,74 +1,114 @@
-// js/admin-rules.js (Versão 2.1 - UI Corrigida)
+document.addEventListener('DOMContentLoaded', function() {
+    const wrapper = document.getElementById('meu-banner-rules-wrapper');
+    if (!wrapper) return;
 
-document.addEventListener('DOMContentLoaded', function () {
-    const rulesContainer = document.getElementById('meu-banner-rules-container');
-    const addRuleButton = document.getElementById('meu-banner-add-rule');
-    const ruleTemplate = document.getElementById('meu-banner-rule-template');
+    // --- LÓGICA DAS ABAS PRINCIPAIS ---
+    const tabs = wrapper.previousElementSibling.querySelectorAll('.nav-tab');
+    const panes = wrapper.querySelectorAll('.tab-pane');
 
-    if (!rulesContainer || !addRuleButton || !ruleTemplate) {
-        return;
+    tabs.forEach(tab => {
+        tab.addEventListener('click', function(e) {
+            e.preventDefault();
+            const targetPaneId = this.getAttribute('href').substring(1);
+
+            tabs.forEach(t => t.classList.remove('nav-tab-active'));
+            this.classList.add('nav-tab-active');
+
+            panes.forEach(p => {
+                p.style.display = 'none';
+                p.classList.remove('active');
+            });
+            
+            const targetPane = document.getElementById(targetPaneId);
+            targetPane.style.display = 'block';
+            targetPane.classList.add('active');
+        });
+    });
+
+
+    // --- LÓGICA DE CAMPOS DEPENDENTES (PARA REGRAS DE CONTEÚDO) ---
+    function initializeContentRule(ruleElement) {
+        const positionSelect = ruleElement.querySelector('.meu-banner-position-select');
+        if (!positionSelect) return; // Só roda para regras de conteúdo
+
+        const paragraphInput = ruleElement.querySelector('.meu-banner-paragraph-input');
+
+        function toggleParagraphInput() {
+            paragraphInput.style.display = (positionSelect.value === 'after_paragraph') ? 'inline-block' : 'none';
+        }
+        toggleParagraphInput();
+        positionSelect.addEventListener('change', toggleParagraphInput);
     }
 
-    /**
-     * Atualiza a visibilidade dos campos da regra com base nas seleções.
-     * @param {HTMLElement} ruleDiv - O elemento <div> que contém toda a regra.
-     */
-    function updateRuleViewState(ruleDiv) {
-        const insertionType = ruleDiv.querySelector('.meu-banner-insertion-type-select').value;
-        const positionType = ruleDiv.querySelector('.meu-banner-position-select').value;
+    // --- LÓGICA DE CAMPOS DEPENDENTES (PARA REGRAS DE SITE - FREQUÊNCIA) ---
+    function initializeSiteRule(ruleElement) {
+        const frequencySelect = ruleElement.querySelector('.meu-banner-frequency-select');
+        if (!frequencySelect) return; // Só roda para regras de site
 
-        // Controla a visibilidade das seções principais (Conteúdo vs Página)
-        ruleDiv.querySelectorAll('.section-content').forEach(el => {
-            el.style.display = (insertionType === 'content') ? 'table-row' : 'none';
-        });
-        ruleDiv.querySelectorAll('.section-page').forEach(el => {
-            el.style.display = (insertionType === 'page') ? 'table-row' : 'none';
-        });
+        const timeFields = ruleElement.querySelector('.meu-banner-time-fields');
+        const accessFields = ruleElement.querySelector('.meu-banner-access-fields');
 
-        // Controla a habilitação do input de número do parágrafo
-        const paragraphInput = ruleDiv.querySelector('.meu-banner-paragraph-input');
-        if (paragraphInput) {
-            // Habilita somente se o tipo de inserção for 'content' E a posição for 'after_paragraph'
-            paragraphInput.disabled = !(insertionType === 'content' && positionType === 'after_paragraph');
+        function toggleFrequencyFields() {
+            const selected = frequencySelect.value;
+            timeFields.style.display = (selected === 'time') ? 'table-row' : 'none';
+            accessFields.style.display = (selected === 'access') ? 'table-row' : 'none';
+        }
+        toggleFrequencyFields();
+        frequencySelect.addEventListener('change', toggleFrequencyFields);
+    }
+
+    function initializeListRule(ruleElement) {
+        // Nenhuma lógica específica necessária para regras de lista ainda
+    }
+
+    // Inicializa para todas as regras já existentes
+    document.querySelectorAll('#tab-content .meu-banner-rule').forEach(initializeContentRule);
+    document.querySelectorAll('#tab-site .meu-banner-rule').forEach(initializeSiteRule);
+    document.querySelectorAll('#tab-listas .meu-banner-rule').forEach(initializeListRule);
+
+
+    // --- LÓGICA DE ADICIONAR NOVA REGRA ---
+    function addNewRule(type) {
+        const templateId = `meu-banner-rule-${type}-template`;
+        const containerId = `tab-${type}`;
+        
+        const template = document.getElementById(templateId);
+        const container = document.getElementById(containerId).querySelector('.rules-container');
+        if (!template || !container) return;
+
+        // Remove a mensagem "nenhuma regra" se ela existir
+        const noRulesP = container.querySelector('p');
+        if(noRulesP) noRulesP.remove();
+
+        const newIndex = Date.now();
+        const templateContent = template.innerHTML.replace(/{index}/g, newIndex);
+        
+        const newRuleWrapper = document.createElement('div');
+        newRuleWrapper.innerHTML = templateContent;
+        const newRuleElement = newRuleWrapper.firstElementChild;
+        
+        container.appendChild(newRuleElement);
+
+        // Inicializa os scripts da nova regra
+        if (type === 'content') {
+            initializeContentRule(newRuleElement);
+        } else if (type === 'site') {
+            initializeSiteRule(newRuleElement);
+        } else if (type === 'list') {
+            initializeListRule(newRuleElement);
         }
     }
 
-    // Adicionar nova regra
-    addRuleButton.addEventListener('click', function () {
-        const lastRule = rulesContainer.querySelector('.meu-banner-rule:last-child');
-        const newIndex = lastRule ? 
-            (parseInt(lastRule.querySelector('input').name.match(/\[(\d+)\]/)[1]) + 1) : 
-            0;
-        
-        const templateHTML = ruleTemplate.innerHTML.replace(/{index}/g, newIndex);
-        rulesContainer.insertAdjacentHTML('beforeend', templateHTML);
-        
-        const newRuleDiv = rulesContainer.lastElementChild;
-        updateRuleViewState(newRuleDiv);
-    });
+    document.getElementById('meu-banner-add-content-rule').addEventListener('click', () => addNewRule('content'));
+    document.getElementById('meu-banner-add-site-rule').addEventListener('click', () => addNewRule('site'));
+    document.getElementById('meu-banner-add-list-rule').addEventListener('click', () => addNewRule('list'));
 
-    // Remover uma regra
-    rulesContainer.addEventListener('click', function(e) {
-        if (e.target && e.target.classList.contains('meu-banner-remove-rule')) {
-            if (confirm('Tem certeza que deseja remover esta regra?')) {
-                e.target.closest('.meu-banner-rule').remove();
-            }
+
+    // --- LÓGICA DE REMOVER REGRA ---
+    wrapper.addEventListener('click', function(e) {
+        if (e.target.classList.contains('meu-banner-remove-rule')) {
+             e.preventDefault();
+             e.target.closest('.meu-banner-rule').remove();
         }
-    });
-
-    // Listener para todas as mudanças dentro do container de regras
-    rulesContainer.addEventListener('change', function(e) {
-        if (e.target && (e.target.classList.contains('meu-banner-insertion-type-select') || e.target.classList.contains('meu-banner-position-select'))) {
-            const ruleDiv = e.target.closest('.meu-banner-rule');
-            if (ruleDiv) {
-                updateRuleViewState(ruleDiv);
-            }
-        }
-    });
-
-    // Garante que o estado de todas as regras existentes esteja correto ao carregar a página.
-    const allRules = rulesContainer.querySelectorAll('.meu-banner-rule');
-    allRules.forEach(ruleDiv => {
-        updateRuleViewState(ruleDiv);
     });
 });

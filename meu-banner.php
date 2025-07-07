@@ -315,19 +315,19 @@ add_filter('the_content', 'meu_banner_auto_insert_content', 99);
 
 /**
  * Renderiza os banners de PÁGINA (Popup/Sticky) no rodapé.
+ * Versão corrigida para permitir múltiplos banners do mesmo tipo (ex: um para desktop, um para mobile).
  */
 function meu_banner_render_page_banners() {
     global $meu_banner_is_on_page, $meu_banner_needs_tracking_script;
 
     $all_rules = get_option('meu_banner_auto_insert_rules', []);
-    if (empty($all_rules)) { 
-        return; 
+    if (empty($all_rules)) {
+        return;
     }
 
     $is_home = is_front_page() || is_home();
-
-    $has_rendered_popup = false;
-    $has_rendered_sticky = false;
+    $popups_to_render = [];
+    $stickies_to_render = [];
     $close_button_html = "<button type='button' class='meu-banner-close-btn' aria-label='Fechar Anúncio'>×</button>";
 
     foreach ($all_rules as $rule) {
@@ -349,17 +349,16 @@ function meu_banner_render_page_banners() {
                 $display = true;
             }
         }
-        
-        if (!$display) { 
-            continue; 
-        }
-        
-        $data = get_post_meta($rule['bloco_id'], '_meu_banner_data', true);
-        if (empty($data)) { 
-            continue; 
+
+        if (!$display) {
+            continue;
         }
 
-        // Gera o conteúdo do banner e determina as classes de visibilidade do container
+        $data = get_post_meta($rule['bloco_id'], '_meu_banner_data', true);
+        if (empty($data)) {
+            continue;
+        }
+
         $desktop_html = '';
         $mobile_html = '';
         $banner_content_html = '';
@@ -383,22 +382,20 @@ function meu_banner_render_page_banners() {
             } elseif (empty($desktop_html) && !empty($mobile_html)) {
                 $visibility_classes = ' hide-on-desktop hide-on-tablet';
             }
-        } else {
-            $banner_content_html = meu_banner_get_content($data);
         }
-        
-        if (empty($banner_content_html)) { 
-            continue; 
+
+        if (empty($banner_content_html)) {
+            continue;
         }
 
         $meu_banner_is_on_page = true;
-        if (!empty($data['tracking_enabled'])) { 
-            $meu_banner_needs_tracking_script = true; 
+        if (!empty($data['tracking_enabled'])) {
+            $meu_banner_needs_tracking_script = true;
         }
 
         $format = $rule['page_format'] ?? 'popup';
         $style = $rule['page_style'] ?? 'dark';
-        
+
         $container_attrs_arr = [
             'data-bloco-id' => esc_attr($rule['bloco_id']),
             'data-frequency-type' => esc_attr($rule['frequency_type'] ?? 'always'),
@@ -418,40 +415,55 @@ function meu_banner_render_page_banners() {
             $container_attrs .= $key . '="' . $value . '" ';
         }
 
-        if ($format === 'popup' && !$has_rendered_popup) {
-            echo '<div class="meu-banner-page-container meu-banner-popup-overlay' . esc_attr($visibility_classes) . '"></div>';
-            echo '<div class="meu-banner-page-container meu-banner-popup-wrapper' . esc_attr($visibility_classes) . '" role="dialog" aria-modal="true" ' . $container_attrs . '>';
-            echo $close_button_html;
-            echo $banner_content_html;
-            echo '</div>';
-            $has_rendered_popup = true;
+        $banner_html = '';
+        if ($format === 'popup') {
+            $banner_html .= '<div class="meu-banner-page-container meu-banner-popup-overlay' . esc_attr($visibility_classes) . '"></div>';
+            $banner_html .= '<div class="meu-banner-page-container meu-banner-popup-wrapper' . esc_attr($visibility_classes) . '" role="dialog" aria-modal="true" ' . $container_attrs . '>';
+            $banner_html .= $close_button_html;
+            $banner_html .= $banner_content_html;
+            $banner_html .= '</div>';
+            $popups_to_render[] = $banner_html;
         }
 
-        if ($format === 'sticky' && !$has_rendered_sticky) {
+        if ($format === 'sticky') {
             $sticky_classes = 'meu-banner-page-container meu-banner-sticky-wrapper meu-banner-sticky-style-' . esc_attr($style) . esc_attr($visibility_classes);
-            echo '<div class="' . $sticky_classes . '" role="complementary" ' . $container_attrs . '>';
-            echo $banner_content_html;
-            echo $close_button_html;
-            echo '</div>';
-            $has_rendered_sticky = true;
+            $banner_html .= '<div class="' . $sticky_classes . '" role="complementary" ' . $container_attrs . '>';
+            $banner_html .= $banner_content_html;
+            $banner_html .= $close_button_html;
+            $banner_html .= '</div>';
+            $stickies_to_render[] = $banner_html;
         }
+    }
+
+    // Renderiza todos os banners coletados
+    if (!empty($popups_to_render)) {
+        echo implode('', $popups_to_render);
+    }
+    if (!empty($stickies_to_render)) {
+        echo implode('', $stickies_to_render);
     }
 }
 add_action('wp_footer', 'meu_banner_render_page_banners');
 
 /**
- * Enfileira todos os assets do frontend (CSS/JS) no rodapé.
+ * Enfileira todos os assets do frontend (CSS/JS).
+ * O CSS é carregado no header para evitar FOUC e garantir que as regras estejam disponíveis para o JS.
+ * O JS é carregado no footer.
  */
 function meu_banner_enqueue_frontend_assets() {
     global $meu_banner_is_on_page, $meu_banner_needs_tracking_script;
 
+    // A flag é setada durante a renderização do conteúdo ou do footer.
+    // Se for um banner de conteúdo, a flag já estará true aqui.
+    // Se for um banner de página (footer), a função de renderização precisa ser chamada antes para setar a flag.
+    // Para garantir que a flag seja verificada no momento certo, vamos movê-la para uma ação com prioridade menor.
     if ($meu_banner_is_on_page) {
-        wp_enqueue_style('meu-banner-frontend-styles', MEU_BANNER_PLUGIN_URL . 'css/auto-insert.css', [], '1.3.2');
-        wp_enqueue_script('meu-banner-frontend-script', MEU_BANNER_PLUGIN_URL . 'js/frontend-banner.js', [], '1.3.2', true);
+        wp_enqueue_style('meu-banner-frontend-styles', MEU_BANNER_PLUGIN_URL . 'css/auto-insert.css', [], '1.3.3');
+        wp_enqueue_script('meu-banner-frontend-script', MEU_BANNER_PLUGIN_URL . 'js/frontend-banner.js', [], '1.3.3', true);
         if ($meu_banner_needs_tracking_script) {
-            wp_enqueue_script('meu-banner-tracker', MEU_BANNER_PLUGIN_URL . 'js/tracker.js', [], '1.3.2', true);
+            wp_enqueue_script('meu-banner-tracker', MEU_BANNER_PLUGIN_URL . 'js/tracker.js', [], '1.3.3', true);
             wp_localize_script('meu-banner-tracker', 'meuBannerAjax', ['ajax_url' => admin_url('admin-ajax.php'), 'nonce' => wp_create_nonce('meu_banner_track_view_nonce'),]);
         }
     }
 }
-add_action('wp_footer', 'meu_banner_enqueue_frontend_assets');
+add_action('wp_enqueue_scripts', 'meu_banner_enqueue_frontend_assets');

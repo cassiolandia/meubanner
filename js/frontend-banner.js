@@ -1,8 +1,8 @@
-// js/frontend-banner.js (Versão 3.0 - Lógica de Frequência)
+// js/frontend-banner.js (Versão 3.1 - Suporte a Múltiplos Banners)
 
 document.addEventListener('DOMContentLoaded', function () {
-    const popupWrapper = document.querySelector('.meu-banner-popup-wrapper');
-    const stickyWrapper = document.querySelector('.meu-banner-sticky-wrapper');
+    const popupWrappers = document.querySelectorAll('.meu-banner-popup-wrapper');
+    const stickyWrappers = document.querySelectorAll('.meu-banner-sticky-wrapper');
 
     // --- LÓGICA DE CONTAGEM DE ACESSOS ---
     const pageAccessCounter = {
@@ -77,9 +77,16 @@ document.addEventListener('DOMContentLoaded', function () {
             wrapper.classList.remove('is-visible');
             
             if (wrapper.classList.contains('meu-banner-popup-wrapper')) {
-                const overlay = document.querySelector('.meu-banner-popup-overlay');
-                if(overlay) overlay.classList.remove('is-visible');
-                document.body.classList.remove('meu-banner-popup-active');
+                // Encontra e remove o overlay associado a este popup
+                const overlay = wrapper.previousElementSibling;
+                if(overlay && overlay.classList.contains('meu-banner-popup-overlay')) {
+                    overlay.classList.remove('is-visible');
+                }
+                // Verifica se ainda existem outros popups ativos antes de remover a classe do body
+                const anyPopupActive = document.querySelector('.meu-banner-popup-wrapper.is-visible');
+                if (!anyPopupActive) {
+                    document.body.classList.remove('meu-banner-popup-active');
+                }
             }
         } else if (wrapper.classList.contains('meu-banner-wrapper')) {
             // Para banners de conteúdo (shortcode/auto-insert), simplesmente remove o elemento.
@@ -94,19 +101,22 @@ document.addEventListener('DOMContentLoaded', function () {
             return;
         }
 
-        // Verifica se o conteúdo real do banner está visível (não oculto por CSS responsivo)
-        const bannerItem = wrapper.querySelector('.meu-banner-item');
-        if (!bannerItem || window.getComputedStyle(bannerItem).display === 'none') {
-            return; // Não mostra o popup/sticky se o banner interno estiver oculto
+        // Verifica se o próprio wrapper está visível.
+        // Isso é mais confiável, pois as classes hide-on-desktop/mobile são aplicadas diretamente nele.
+        if (window.getComputedStyle(wrapper).display === 'none') {
+            return;
         }
-        
+
         const delay = wrapper.classList.contains('meu-banner-popup-wrapper') ? 1500 : 1000;
 
         setTimeout(() => {
             wrapper.classList.add('is-visible');
             if (wrapper.classList.contains('meu-banner-popup-wrapper')) {
-                const overlay = document.querySelector('.meu-banner-popup-overlay');
-                if(overlay) overlay.classList.add('is-visible');
+                // Encontra e exibe o overlay associado
+                const overlay = wrapper.previousElementSibling;
+                 if(overlay && overlay.classList.contains('meu-banner-popup-overlay')) {
+                    overlay.classList.add('is-visible');
+                }
                 document.body.classList.add('meu-banner-popup-active');
             }
         }, delay);
@@ -114,20 +124,27 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // --- INICIALIZAÇÃO E EVENTOS ---
     document.body.addEventListener('click', function(e) {
+        // Botão de fechar genérico
         const closeButton = e.target.closest('.meu-banner-close-btn');
         if (closeButton) {
             e.preventDefault();
             const bannerWrapper = closeButton.closest('.meu-banner-page-container, .meu-banner-wrapper');
             closeBanner(bannerWrapper);
+            return; // Evita que o clique no overlay seja acionado também
         }
         
-        const popupOverlay = e.target.closest('.meu-banner-popup-overlay');
+        // Clique no overlay do popup
+        const popupOverlay = e.target.closest('.meu-banner-popup-overlay.is-visible');
         if (popupOverlay) {
-            closeBanner(popupWrapper);
+            // Encontra o wrapper do popup que vem depois do overlay e o fecha
+            const popupWrapper = popupOverlay.nextElementSibling;
+            if (popupWrapper && popupWrapper.classList.contains('meu-banner-popup-wrapper')) {
+                closeBanner(popupWrapper);
+            }
         }
     });
 
-    // Inicia a exibição dos banners de página
-    showBanner(popupWrapper);
-    showBanner(stickyWrapper);
+    // Inicia a exibição de todos os banners de página encontrados
+    popupWrappers.forEach(showBanner);
+    stickyWrappers.forEach(showBanner);
 });

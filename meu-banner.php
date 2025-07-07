@@ -446,19 +446,17 @@ function meu_banner_render_page_banners() {
 add_action('wp_footer', 'meu_banner_render_page_banners');
 
 /**
- * Enfileira todos os assets do frontend (CSS/JS).
- * O CSS é carregado no header para evitar FOUC e garantir que as regras estejam disponíveis para o JS.
- * O JS é carregado no footer.
+ * Enfileira todos os assets do frontend (CSS/JS) no rodapé.
+ * Isso garante que a flag de renderização seja acionada antes do enfileiramento.
  */
 function meu_banner_enqueue_frontend_assets() {
     global $meu_banner_is_on_page, $meu_banner_needs_tracking_script;
 
     if ($meu_banner_is_on_page) {
-        wp_enqueue_style('meu-banner-frontend-styles', MEU_BANNER_PLUGIN_URL . 'css/auto-insert.css', [], '1.4.0');
-        wp_enqueue_script('meu-banner-frontend-script', MEU_BANNER_PLUGIN_URL . 'js/frontend-banner.js', [], '1.4.0', true);
+        wp_enqueue_style('meu-banner-frontend-styles', MEU_BANNER_PLUGIN_URL . 'css/auto-insert.css', [], '1.4.1');
+        wp_enqueue_script('meu-banner-frontend-script', MEU_BANNER_PLUGIN_URL . 'js/frontend-banner.js', [], '1.4.1', true);
 
         if ($meu_banner_needs_tracking_script) {
-            // Passa os dados do AJAX diretamente para o script principal, que agora controla o rastreamento.
             wp_localize_script('meu-banner-frontend-script', 'meuBannerAjax', [
                 'ajax_url' => admin_url('admin-ajax.php'),
                 'nonce'    => wp_create_nonce('meu_banner_track_view_nonce'),
@@ -466,4 +464,4 @@ function meu_banner_enqueue_frontend_assets() {
         }
     }
 }
-add_action('wp_enqueue_scripts', 'meu_banner_enqueue_frontend_assets');
+add_action('wp_footer', 'meu_banner_enqueue_frontend_assets');

@@ -1,19 +1,14 @@
-// js/tracker.js
+// js/tracker.js (Versão 3.3 - Final)
 
 document.addEventListener('DOMContentLoaded', function() {
-    // Função para enviar a requisição AJAX
     function trackBannerView(blocoId) {
         if (!blocoId) {
-            console.warn('meu-banner-tracker: Bloco ID não fornecido para rastreamento.');
             return;
         }
-
-        
-
         const data = new FormData();
         data.append('action', 'meu_banner_track_view');
         data.append('bloco_id', blocoId);
-        data.append('nonce', meuBannerAjax.nonce); // Nonce global do WordPress
+        data.append('nonce', meuBannerAjax.nonce);
 
         fetch(meuBannerAjax.ajax_url, {
             method: 'POST',
@@ -21,61 +16,44 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .then(response => response.json())
         .then(result => {
-            if (result.success) {
-                console.log('meu-banner-tracker: Visualização do banner ' + blocoId + ' rastreada com sucesso.');
-            } else {
-                console.warn('meu-banner-tracker: Falha ao rastrear visualização do banner ' + blocoId + ':', result.data.message);
+            if (!result.success) {
+                // console.warn('Falha ao rastrear banner ' + blocoId, result.data.message);
             }
         })
         .catch(error => {
-            console.error('meu-banner-tracker: Erro na requisição AJAX para o banner ' + blocoId + ':', error);
+            // console.error('Erro ao rastrear banner ' + blocoId, error);
         });
     }
 
-    // Rastreamento para banners inline (shortcode)
-    document.querySelectorAll('.meu-banner-wrapper[data-bloco-id]').forEach(banner => {
-        const blocoId = banner.dataset.blocoId;
-        if (blocoId) {
-            trackBannerView(blocoId);
-        }
-    });
-
-    // Rastreamento para banners de página (popup/sticky)
-    // Estes são geralmente carregados após um delay e se tornam visíveis.
-    // Monitora a visibilidade dos wrappers de popup e sticky.
     const observerOptions = {
-        root: null, // viewport
+        root: null,
         rootMargin: '0px',
-        threshold: 0.1 // 10% do elemento visível
+        threshold: 0.1 // Rastreia quando 10% do banner está visível. Mais confiável para mobile.
     };
+
+    const trackedBanners = new Set();
 
     const observer = new IntersectionObserver((entries, observer) => {
         entries.forEach(entry => {
             if (entry.isIntersecting) {
-                const bannerElement = entry.target;
-                const bannerItem = bannerElement.querySelector('.meu-banner-item');
+                const bannerWrapper = entry.target;
+                const blocoId = bannerWrapper.dataset.blocoId;
 
-                // Rastreia apenas se o conteúdo interno do banner estiver visível
-                if (bannerItem && window.getComputedStyle(bannerItem).display !== 'none') {
-                    const blocoId = bannerElement.dataset.blocoId;
-                    if (blocoId) {
+                if (blocoId && !trackedBanners.has(blocoId)) {
+                    // Confirma que o banner não está oculto por CSS (display: none)
+                    if (window.getComputedStyle(bannerWrapper).display !== 'none') {
                         trackBannerView(blocoId);
+                        trackedBanners.add(blocoId);
+                        observer.unobserve(bannerWrapper);
                     }
-                    // Uma vez rastreado, não precisa mais observar
-                    observer.unobserve(bannerElement);
                 }
             }
         });
     }, observerOptions);
 
-    // Observa os wrappers de popup e sticky se existirem
-    const popupWrapper = document.querySelector('.meu-banner-popup-wrapper[data-bloco-id]');
-    const stickyWrapper = document.querySelector('.meu-banner-sticky-wrapper[data-bloco-id]');
-
-    if (popupWrapper) {
-        observer.observe(popupWrapper);
-    }
-    if (stickyWrapper) {
-        observer.observe(stickyWrapper);
-    }
+    // Seleciona TODOS os banners com o atributo data-bloco-id para observar
+    const bannersToTrack = document.querySelectorAll('[data-bloco-id]');
+    bannersToTrack.forEach(banner => {
+        observer.observe(banner);
+    });
 });

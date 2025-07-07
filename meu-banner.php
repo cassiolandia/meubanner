@@ -453,16 +453,16 @@ add_action('wp_footer', 'meu_banner_render_page_banners');
 function meu_banner_enqueue_frontend_assets() {
     global $meu_banner_is_on_page, $meu_banner_needs_tracking_script;
 
-    // A flag é setada durante a renderização do conteúdo ou do footer.
-    // Se for um banner de conteúdo, a flag já estará true aqui.
-    // Se for um banner de página (footer), a função de renderização precisa ser chamada antes para setar a flag.
-    // Para garantir que a flag seja verificada no momento certo, vamos movê-la para uma ação com prioridade menor.
     if ($meu_banner_is_on_page) {
-        wp_enqueue_style('meu-banner-frontend-styles', MEU_BANNER_PLUGIN_URL . 'css/auto-insert.css', [], '1.3.3');
-        wp_enqueue_script('meu-banner-frontend-script', MEU_BANNER_PLUGIN_URL . 'js/frontend-banner.js', [], '1.3.3', true);
+        wp_enqueue_style('meu-banner-frontend-styles', MEU_BANNER_PLUGIN_URL . 'css/auto-insert.css', [], '1.4.0');
+        wp_enqueue_script('meu-banner-frontend-script', MEU_BANNER_PLUGIN_URL . 'js/frontend-banner.js', [], '1.4.0', true);
+
         if ($meu_banner_needs_tracking_script) {
-            wp_enqueue_script('meu-banner-tracker', MEU_BANNER_PLUGIN_URL . 'js/tracker.js', [], '1.3.3', true);
-            wp_localize_script('meu-banner-tracker', 'meuBannerAjax', ['ajax_url' => admin_url('admin-ajax.php'), 'nonce' => wp_create_nonce('meu_banner_track_view_nonce'),]);
+            // Passa os dados do AJAX diretamente para o script principal, que agora controla o rastreamento.
+            wp_localize_script('meu-banner-frontend-script', 'meuBannerAjax', [
+                'ajax_url' => admin_url('admin-ajax.php'),
+                'nonce'    => wp_create_nonce('meu_banner_track_view_nonce'),
+            ]);
         }
     }
 }

@@ -18,9 +18,11 @@ define('MEU_BANNER_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('MEU_BANNER_PLUGIN_URL', plugin_dir_url(__FILE__));
 
 // Inclui os arquivos de administração
-require_once MEU_BANNER_PLUGIN_DIR . 'admin/admin-functions.php';
-require_once MEU_BANNER_PLUGIN_DIR . 'admin/auto-insert-page.php';
-require_once MEU_BANNER_PLUGIN_DIR . 'admin/reports.php';
+if (is_admin()) {
+    require_once MEU_BANNER_PLUGIN_DIR . 'admin/admin-functions.php';
+    require_once MEU_BANNER_PLUGIN_DIR . 'admin/auto-insert-page.php';
+    require_once MEU_BANNER_PLUGIN_DIR . 'admin/reports.php';
+}
 
 
 

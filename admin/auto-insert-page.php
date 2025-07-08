@@ -4,7 +4,13 @@ if (!defined('ABSPATH')) {
 }
 
 function meu_banner_render_auto_insert_page() {
+    $active_tab = 'tab-content'; // Aba padrão
+
     if (isset($_POST['meu_banner_save_rules_nonce']) && wp_verify_nonce($_POST['meu_banner_save_rules_nonce'], 'meu_banner_save_rules')) {
+        if (isset($_POST['meu_banner_active_tab'])) {
+            $active_tab = sanitize_key($_POST['meu_banner_active_tab']);
+        }
+
         $rules = [];
         if (isset($_POST['rules']) && is_array($_POST['rules'])) {
             foreach ($_POST['rules'] as $rule_data) {
@@ -49,7 +55,9 @@ function meu_banner_render_auto_insert_page() {
         }
     }
     
-    add_action('admin_footer', 'meu_banner_auto_insert_page_scripts');
+    add_action('admin_footer', function() use ($active_tab) {
+        meu_banner_auto_insert_page_scripts($active_tab);
+    });
     ?>
     <div class="wrap">
         <h1><?php _e('Inserção Automática de Banners', 'meu-banner'); ?></h1>
@@ -57,15 +65,16 @@ function meu_banner_render_auto_insert_page() {
 
         <form method="post" action="">
             <?php wp_nonce_field('meu_banner_save_rules', 'meu_banner_save_rules_nonce'); ?>
+            <input type="hidden" id="meu-banner-active-tab" name="meu_banner_active_tab" value="<?php echo esc_attr($active_tab); ?>">
 
             <h2 class="nav-tab-wrapper">
-                <a href="#tab-content" class="nav-tab nav-tab-active"><?php printf(__('Conteúdo (%d)', 'meu-banner'), count($content_rules)); ?></a>
+                <a href="#tab-content" class="nav-tab"><?php printf(__('Conteúdo (%d)', 'meu-banner'), count($content_rules)); ?></a>
                 <a href="#tab-site" class="nav-tab"><?php printf(__('Site (%d)', 'meu-banner'), count($site_rules)); ?></a>
-                <a href="#tab-listas" class="nav-tab"><?php printf(__('Listas (%d)', 'meu-banner'), count($list_rules)); ?></a>
+                <a href="#tab-list" class="nav-tab"><?php printf(__('Listas (%d)', 'meu-banner'), count($list_rules)); ?></a>
             </h2>
 
             <div id="meu-banner-rules-wrapper">
-                <div id="tab-content" class="tab-pane active">
+                <div id="tab-content" class="tab-pane">
                     <div class="rules-container">
                         <?php
                         if (!empty($content_rules)) {
@@ -99,7 +108,7 @@ function meu_banner_render_auto_insert_page() {
                     </p>
                 </div>
 
-                <div id="tab-listas" class="tab-pane">
+                <div id="tab-list" class="tab-pane">
                      <div class="rules-container">
                         <?php
                         if (!empty($list_rules)) {
@@ -327,7 +336,7 @@ function meu_banner_render_rule_fields($index, $rule = []) {
     <?php
 }
 
-function meu_banner_auto_insert_page_scripts() {
+function meu_banner_auto_insert_page_scripts($active_tab) {
     ?>
     <style>
         .tab-pane { display: none; padding-top: 15px; border: 1px solid #ccd0d4; border-top: 0; padding: 20px; background: #fdfdfd; }
@@ -341,23 +350,30 @@ function meu_banner_auto_insert_page_scripts() {
 
         const tabs = wrapper.previousElementSibling.querySelectorAll('.nav-tab');
         const panes = wrapper.querySelectorAll('.tab-pane');
+        const activeTabInput = document.getElementById('meu-banner-active-tab');
+
+        function switchTab(tabId) {
+            const targetPane = document.getElementById(tabId);
+            const targetTab = wrapper.previousElementSibling.querySelector(`a[href="#${tabId}"]`);
+
+            if (!targetPane || !targetTab) return;
+
+            tabs.forEach(t => t.classList.remove('nav-tab-active'));
+            targetTab.classList.add('nav-tab-active');
+
+            panes.forEach(p => p.classList.remove('active'));
+            targetPane.classList.add('active');
+
+            if (activeTabInput) {
+                activeTabInput.value = tabId;
+            }
+        }
 
         tabs.forEach(tab => {
             tab.addEventListener('click', function(e) {
                 e.preventDefault();
                 const targetPaneId = this.getAttribute('href').substring(1);
-
-                tabs.forEach(t => t.classList.remove('nav-tab-active'));
-                this.classList.add('nav-tab-active');
-
-                panes.forEach(p => {
-                    p.style.display = 'none';
-                    p.classList.remove('active');
-                });
-                
-                const targetPane = document.getElementById(targetPaneId);
-                targetPane.style.display = 'block';
-                targetPane.classList.add('active');
+                switchTab(targetPaneId);
             });
         });
 
@@ -394,7 +410,7 @@ function meu_banner_auto_insert_page_scripts() {
 
         document.querySelectorAll('#tab-content .meu-banner-rule').forEach(initializeContentRule);
         document.querySelectorAll('#tab-site .meu-banner-rule').forEach(initializeSiteRule);
-        document.querySelectorAll('#tab-listas .meu-banner-rule').forEach(initializeListRule);
+        document.querySelectorAll('#tab-list .meu-banner-rule').forEach(initializeListRule);
 
         function addNewRule(type) {
             const templateId = `meu-banner-rule-${type}-template`;
@@ -435,6 +451,12 @@ function meu_banner_auto_insert_page_scripts() {
                  e.target.closest('.meu-banner-rule').remove();
             }
         });
+
+        // Define a aba ativa ao carregar a página
+        const activeTabOnLoad = '<?php echo esc_js($active_tab); ?>';
+        if (activeTabOnLoad) {
+            switchTab(activeTabOnLoad);
+        }
     });
     </script>
     <?php

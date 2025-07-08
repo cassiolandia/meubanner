@@ -224,7 +224,27 @@ function meu_banner_render_rule_fields($index, $rule = []) {
                     <?php
                         $list_position = $rule['list_position'] ?? 'after_item';
                         $list_item_num = $rule['list_item_num'] ?? 1;
+                        $list_insertion_method = $rule['list_insertion_method'] ?? 'theme_integrated'; // Novo campo
                     ?>
+                    <tr>
+                        <th scope="row"><label><?php _e('Método de Inserção', 'meu-banner'); ?></label></th>
+                        <td>
+                            <select name="rules[<?php echo esc_attr($index); ?>][list_insertion_method]">
+                                <option value="theme_integrated" <?php selected($list_insertion_method, 'theme_integrated'); ?>><?php _e('Integrado ao Tema (Recomendado)', 'meu-banner'); ?></option>
+                                <option value="direct_html" <?php selected($list_insertion_method, 'direct_html'); ?>><?php _e('HTML Direto', 'meu-banner'); ?></option>
+                            </select>
+                            <p class="description">
+                                <?php 
+                                printf(
+                                    /* translators: 1: Method name, 2: Method name. */
+                                    esc_html__("'%s' usa a estrutura de posts do seu tema para melhor compatibilidade. '%s' insere o código do banner diretamente.", "meu-banner"),
+                                    '<strong>' . esc_html__('Integrado ao Tema', 'meu-banner') . '</strong>',
+                                    '<strong>' . esc_html__('HTML Direto', 'meu-banner') . '</strong>'
+                                ); 
+                                ?>
+                            </p>
+                        </td>
+                    </tr>
                     <tr>
                         <th scope="row"><label><?php _e('Posição na Lista', 'meu-banner'); ?></label></th>
                         <td>

@@ -3,119 +3,101 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-// --- LÓGICA DE INSERÇÃO EM LISTAS ---
+/**
+ * Registra o conteúdo a ser inserido no loop de posts do WordPress.
+ *
+ * @param array $args {
+ *     Argumentos para a inserção.
+ *     @type string $codigo  O bloco de código HTML a ser inserido. Obrigatório.
+ *     @type int    $numero  O número do post (baseado em 1) para a inserção. Ex: 3 para o terceiro post. Obrigatório.
+ *     @type string $posicao A posição relativa ao post. Aceita 'before' ou 'after'. Padrão 'after'.
+ * }
+ * NÃO CHAME ESTA FUNÇÃO DIRETAMENTE.
+ */
+function inserir_html_no_loop( $args = [] ) {
+    global $wp_query;
 
-function meu_banner_apply_list_insert_rules($posts) {
-    if (is_admin() || !is_main_query() || empty($posts) || is_singular()) {
-        return $posts;
+    $defaults = [
+        'codigo'  => '',
+        'numero'  => 0,
+        'posicao' => 'after',
+    ];
+    $args = wp_parse_args( $args, $defaults );
+
+    if ( empty( $args['codigo'] ) || empty( $args['numero'] ) ) {
+        if ( defined('WP_DEBUG') && WP_DEBUG ) {
+            error_log('Tentativa de inserir HTML no loop sem "numero" ou "codigo".');
+        }
+        return; // Interrompe a execução para este caso especial.
     }
 
-    $rules = get_option('meu_banner_auto_insert_rules', []);
-    if (empty($rules)) return $posts;
-
-    $applicable_rules = [];
-    foreach ($rules as $rule) {
-        if (empty($rule['enabled']) || empty($rule['bloco_id']) || ($rule['insertion_type'] ?? 'content') !== 'list') {
-            continue;
-        }
-
-        $rule_locations = $rule['post_types'] ?? [];
-        if (empty($rule_locations)) continue;
-
-        $applies = false;
-        $is_on_home = is_front_page() || is_home();
-        $is_on_paged_home = $is_on_home && is_paged();
-
-        if (in_array('all_lists', $rule_locations)) {
-            $applies = true;
-        } elseif ($is_on_paged_home && in_array('home_paged', $rule_locations)) {
-            $applies = true;
-        } elseif ($is_on_home && !$is_on_paged_home && in_array('home', $rule_locations)) {
-            $applies = true;
-        } elseif (is_search() && in_array('search', $rule_locations)) {
-            $applies = true;
-        } elseif (is_archive()) {
-            $post_type_in_query = get_query_var('post_type');
-            if (empty($post_type_in_query)) $post_type_in_query = 'post';
-            $post_type_in_query = is_array($post_type_in_query) ? $post_type_in_query : [$post_type_in_query];
-            if (count(array_intersect($post_type_in_query, $rule_locations)) > 0) {
-                $applies = true;
-            }
-        }
-
-        if ($applies) $applicable_rules[] = $rule;
+    // Garante que a variável global exista.
+    if ( ! isset( $GLOBALS['html_para_inserir_no_loop'] ) ) {
+        $GLOBALS['html_para_inserir_no_loop'] = [];
     }
 
-    if (empty($applicable_rules)) return $posts;
-
-    usort($applicable_rules, fn($a, $b) => ($a['list_item_num'] ?? 1) <=> ($b['list_item_num'] ?? 1));
-
-    $offset = 0;
-    foreach ($applicable_rules as $rule) {
-        $banner_content = do_shortcode('[meu_banner id="' . intval($rule['bloco_id']) . '"]');
-        if (empty($banner_content)) continue;
-
-        $banner_post = new WP_Post((object)[
-            'ID'             => -1 * intval($rule['bloco_id']),
-            'post_title'     => 'Banner Ad',
-            'post_content'   => $banner_content,
-            'post_status'    => 'publish',
-            'post_type'      => 'meu_banner_ad',
-            'comment_status' => 'closed',
-            'ping_status'    => 'closed',
-            'filter'         => 'raw',
-        ]);
-
-        $position = intval($rule['list_item_num']);
-        if ($rule['list_position'] === 'before_item') {
-            $position = max(0, $position - 1);
-        }
-
-        $final_position = $position + $offset;
-
-        if ($final_position >= 0 && $final_position <= count($posts)) {
-            array_splice($posts, $final_position, 0, [$banner_post]);
-            $offset++;
-        }
-    }
-
-    return $posts;
-}
-add_filter('the_posts', 'meu_banner_apply_list_insert_rules', 20, 1);
-
-function meu_banner_ad_block_render($block_content, $block) {
-    global $post;
-
-    if (!is_object($post) || !isset($post->post_type) || $post->post_type !== 'meu_banner_ad') {
-        return $block_content;
-    }
-
-    $blocks_to_hide = [
-        'core/post-title',
-        'core/post-date',
-        'core/post-author',
-        'core/post-terms',
-        'core/post-featured-image',
-        'core/spacer',
+    // Adiciona os detalhes da inserção à variável global.
+    $GLOBALS['html_para_inserir_no_loop'][] = [
+        'codigo'  => $args['codigo'],
+        'numero'  => (int) $args['numero'],
+        'posicao' => $args['posicao'],
     ];
 
-    if (in_array($block['blockName'], $blocks_to_hide)) {
-        return ''; // Retorna uma string vazia para ocultar o bloco
+    // Adiciona o hook para processar a inserção.
+    if ( ! has_action( 'the_post', '_callback_processar_insercao_html' ) ) {
+        add_action( 'the_post', '_callback_processar_insercao_html' );
+        add_action( 'loop_end', '_callback_processar_insercao_html' ); // Para garantir que o último item seja processado.
     }
-
-    if ($block['blockName'] === 'core/post-excerpt' || $block['blockName'] === 'core/post-content') {
-        return $post->post_content;
-    }
-
-    return $block_content; // Retorna o conteúdo original para outros blocos
 }
-add_filter('render_block', 'meu_banner_ad_block_render', 10, 2);
 
-function meu_banner_ad_post_class_filter($classes) {
-    global $post;
-    if (is_object($post) && isset($post->post_type) && $post->post_type === 'meu_banner_ad') {
-        return ['meu-banner-list-item', 'wp-block-post']; // Adiciona a classe base para manter o estilo
+/**
+ * Função de callback que processa as inserções agendadas a cada post no loop.
+ * @internal
+ */
+function _callback_processar_insercao_html() {
+    global $wp_query;
+
+    // Interrompe a execução se não for o loop principal ou se não estivermos no loop.
+    if ( ! $wp_query->is_main_query() || ! in_the_loop() ) {
+        return;
     }
-    return $classes;
+
+    // Se a variável global não estiver definida, não há nada para fazer.
+    if ( ! isset( $GLOBALS['html_para_inserir_no_loop'] ) ) {
+        return;
+    }
+
+    $posicao_atual = $wp_query->current_post + 1;
+
+    foreach ( $GLOBALS['html_para_inserir_no_loop'] as $key => $insercao ) {
+        if ( $posicao_atual === $insercao['numero'] ) {
+            if ( 'before' === $insercao['posicao'] ) {
+                echo $insercao['codigo'];
+                unset( $GLOBALS['html_para_inserir_no_loop'][ $key ] );
+            }
+        }
+    }
+
+    // Processa as inserções 'after' no final do post.
+    if ( $posicao_atual === $wp_query->post_count ) {
+        foreach ( $GLOBALS['html_para_inserir_no_loop'] as $key => $insercao ) {
+            if ( 'after' === $insercao['posicao'] ) {
+                echo $insercao['codigo'];
+                unset( $GLOBALS['html_para_inserir_no_loop'][ $key ] );
+            }
+        }
+    }
+
+    // Limpa a variável global no final do loop.
+    if ( ! $wp_query->in_the_loop && empty( $GLOBALS['html_para_inserir_no_loop'] ) ) {
+        unset( $GLOBALS['html_para_inserir_no_loop'] );
+    }
 }
-add_filter('post_class', 'meu_banner_ad_post_class_filter', 999);
+
+// Hook para limpar a variável global no início de cada loop principal, se necessário.
+add_action( 'loop_start', function() {
+    global $wp_query;
+    if ( $wp_query->is_main_query() ) {
+        $GLOBALS['html_para_inserir_no_loop'] = [];
+    }
+});

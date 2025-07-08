@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Meu Banner
  * Description:       Um plugin para gerenciar blocos de anúncios com suporte a banners em subgrupos, exibição via shortcode e inserção automática.
- * Version:           1.6.5
+ * Version:           1.7
  * Author:            Cássio
  * Requires at least: 6.0
  * Requires PHP:      8.0
@@ -512,7 +512,7 @@ function meu_banner_uninstall() {
 
     // Remove o CPT do banco de dados (opcional, mas bom para limpeza completa)
     unregister_post_type('meu_banner_bloco');
-    flush_rewrite_rules();
+    // flush_rewrite_rules(); // Removido para evitar timeouts
 }
 register_uninstall_hook(__FILE__, 'meu_banner_uninstall');
 
@@ -520,7 +520,7 @@ register_uninstall_hook(__FILE__, 'meu_banner_uninstall');
  * Ação de desativação: apenas limpa as regras de reescrita.
  */
 function meu_banner_deactivate() {
-    flush_rewrite_rules();
+    // flush_rewrite_rules(); // Removido para evitar timeouts
 }
 register_deactivation_hook(__FILE__, 'meu_banner_deactivate');
 

@@ -25,7 +25,9 @@ if (is_admin()) {
 }
 
 // Inclui a lógica de inserção do frontend
-require_once MEU_BANNER_PLUGIN_DIR . 'includes/frontend-insertion.php';
+require_once MEU_BANNER_PLUGIN_DIR . 'includes/insertion-content.php';
+require_once MEU_BANNER_PLUGIN_DIR . 'includes/insertion-site.php';
+require_once MEU_BANNER_PLUGIN_DIR . 'includes/insertion-list.php';
 
 
 

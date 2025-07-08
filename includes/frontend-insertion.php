@@ -4,9 +4,11 @@ if (!defined('ABSPATH')) {
 }
 
 function meu_banner_apply_auto_insert_rules($content) {
-    if (is_feed() || !is_main_query() || !is_singular()) {
+    static $did_run = false;
+    if ($did_run || is_feed() || !is_main_query() || !is_singular() || is_home() || is_archive() || is_search()) {
         return $content;
     }
+    $did_run = true;
 
     $rules = get_option('meu_banner_auto_insert_rules', []);
     if (empty($rules)) {
@@ -55,7 +57,7 @@ function meu_banner_apply_auto_insert_rules($content) {
 
     return $content;
 }
-add_filter('the_content', 'meu_banner_apply_auto_insert_rules');
+// add_filter('the_content', 'meu_banner_apply_auto_insert_rules'); // Removido para evitar duplicacao
 
 function meu_banner_enqueue_site_banners() {
     if (is_admin()) {

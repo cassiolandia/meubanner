@@ -15,40 +15,41 @@ O objetivo deste plugin é permitir o gerenciamento e a inserção automática d
     2.  **Site:** Insere o banner em nível de página, como um Popup ou uma barra Sticky no rodapé.
     3.  **Lista:** Insere o banner entre os itens de um loop de posts (ex: na página inicial, arquivos de categoria, resultados de pesquisa).
 
-## 2. Arquitetura de Arquivos
+## 2. Arquitetura de Arquivos (Pós-Refatoração)
 
-A seguir, a descrição da responsabilidade de cada arquivo principal.
+A seguir, a descrição da responsabilidade de cada arquivo principal após as correções de duplicação e a implementação da rotação de banners.
 
--   `meu-banner.php`: **Arquivo Principal.**
+-   `meu-banner.php`: **Arquivo Principal e Lógica Central de Renderização.**
     -   Registra o CPT `meu_banner_bloco`.
-    -   Define constantes globais (`MEU_BANNER_PLUGIN_DIR`, `MEU_BANNER_PLUGIN_URL`).
-    -   **IMPORTANTE:** Carrega os arquivos da pasta `admin/` apenas em páginas de administração, usando uma verificação `if (is_admin())`. Isso é crucial para o desempenho do site.
-    -   Contém a lógica de renderização dos banners (shortcode e funções auxiliares).
+    -   Define constantes globais.
+    -   Carrega os arquivos de `admin/` e `includes/`.
+    -   **Lógica de Renderização Principal:**
+        -   `meu_banner_shortcode_handler()`: Processa o shortcode `[meu_banner]`.
+        -   `meu_banner_render_block()`: **Função central que busca os dados de um bloco**, seleciona o banner apropriado (considerando o modo geral/responsivo) e prepara o HTML.
+        -   `meu_banner_get_weighted_random_banner()`: **Nova função crucial.** Recebe uma lista de banners e **seleciona um aleatoriamente, respeitando o peso (weight) de cada um**. É isso que permite a rotação.
+        -   `meu_banner_render_html()`: Gera o HTML final para um único banner (tag `<a>`, `<img>` ou código HTML).
+    -   **Lógica de Inserção Automática (Conteúdo):**
+        -   `meu_banner_auto_insert_content()`: **ÚNICA função responsável por inserir banners no conteúdo de posts/páginas** (`the_content`). Ela é robusta e lida com múltiplas posições (antes, depois, após parágrafos).
 
 -   `admin/admin-functions.php`: **Funções do Painel Admin.**
-    -   Cria a Meta Box "Configurações do Bloco de Anúncio" para o CPT `meu_banner_bloco`.
-    -   Renderiza os campos da Meta Box (seleção de tipo de banner, conteúdo, imagem, etc.).
-    -   Salva os metadados do post (`_meu_banner_data`) usando o hook `save_post`.
-    -   Adiciona colunas personalizadas (Shortcode, Visualizações) à lista de blocos no admin.
+    -   Cria e renderiza a Meta Box de "Configurações do Bloco", onde os banners, seus tipos (HTML/Imagem), **pesos (weight)** e modo de exibição (Geral/Responsivo) são definidos.
+    -   Salva os metadados do bloco (`_meu_banner_data`).
+    -   Adiciona colunas personalizadas (Shortcode, Visualizações, Relatório) à lista de blocos.
 
--   `admin/auto-insert-page.php`: **Página de Inserção Automática e Lógica de Inserção.**
-    -   **Interface do Usuário (UI):**
-        -   Renderiza a página "Inserção Automática" com as abas "Conteúdo", "Site" e "Listas".
-        -   A função `meu_banner_render_rule_fields()` gera o HTML para os campos de uma regra individual.
-        -   O JavaScript na função `meu_banner_auto_insert_page_scripts()` controla a interatividade da página (troca de abas, adição/remoção de regras, campos condicionais).
-        -   **Para manter a aba ativa após salvar,** um campo oculto (`#meu-banner-active-tab`) armazena a aba atual, que é lida no recarregamento da página.
-    -   **Lógica de Inserção (Frontend):**
-        -   Contém as funções que aplicam as regras no frontend do site. Cada tipo de inserção tem sua própria função e hook.
-        -   `meu_banner_apply_auto_insert_rules()`: Usa o filtro `the_content` para inserir banners em posts/páginas individuais.
-        -   `meu_banner_enqueue_site_banners()`: Usa o hook `wp_enqueue_scripts` para carregar os dados dos banners de "Site" (Popup/Sticky) para o JavaScript do frontend.
-        -   `meu_banner_apply_list_insert_rules()`: **A função mais complexa.** Usa o filtro `the_posts` para inserir banners em listas.
-        -   `meu_banner_ad_block_render()`: **A solução para temas de bloco.** Usa o filtro `render_block` para controlar a saída de cada bloco do WordPress para os banners inseridos em listas.
+-   `admin/auto-insert-page.php`: **Página de "Inserção Automática".**
+    -   **Interface do Usuário (UI):** Renderiza a página de configurações onde os usuários criam e gerenciam as regras de inserção para "Conteúdo", "Site" e "Listas".
+    -   **NÃO CONTÉM MAIS LÓGICA DE INSERÇÃO NO FRONTEND.** Sua responsabilidade é apenas salvar as regras no banco de dados (`update_option`).
 
--   `js/admin-rules.js`: **JavaScript da Página de Inserção Automática.**
-    -   Este arquivo foi substituído pela lógica contida diretamente em `auto-insert-page.php` dentro da função `meu_banner_auto_insert_page_scripts()`. As modificações na UI devem ser feitas lá.
+-   `includes/frontend-insertion.php`: **Lógica de Inserção (Site e Listas).**
+    -   `meu_banner_apply_auto_insert_rules()`: **Esta função foi desativada (comentada)** para evitar a duplicação de banners no conteúdo.
+    -   `meu_banner_enqueue_site_banners()`: Lida com a inserção de banners de "Site" (Popup/Sticky), enfileirando os scripts e dados necessários.
+    -   `meu_banner_apply_list_insert_rules()`: Lida com a inserção de banners em "Listas" (home, arquivos, etc.), usando o hook `the_posts`.
+    -   `meu_banner_ad_block_render()`: Função auxiliar para a inserção em listas, garantindo que o banner seja exibido corretamente em temas de bloco.
 
--   `js/frontend-banner.js`: **JavaScript para Banners de Site (Popup/Sticky).**
-    -   Lida com a exibição, fechamento e controle de frequência (via cookies) dos banners de "Site".
+-   `js/frontend-banner.js`: **JavaScript para Banners de Site e Rastreamento.**
+    -   Lida com a exibição, fechamento e controle de frequência (cookies) dos banners de "Site" (Popup/Sticky).
+    -   Contém a lógica AJAX para rastrear as visualizações dos banners quando a opção está ativada.
+
 
 ## 3. Fluxo de Dados e Lógica de Inserção em Listas
 

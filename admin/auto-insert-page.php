@@ -179,8 +179,14 @@ function meu_banner_render_rule_fields($index, $rule = []) {
                     <td>
                         <select name="rules[<?php echo esc_attr($index); ?>][bloco_id]">
                             <option value="0"><?php _e('-- Selecione um Bloco --', 'meu-banner'); ?></option>
-                            <?php foreach ($blocos as $bloco) : ?>
-                                <option value="<?php echo esc_attr($bloco->ID); ?>" <?php selected($bloco_id, $bloco->ID); ?>><?php echo esc_html($bloco->post_title); ?></option>
+                            <?php 
+                            foreach ($blocos as $bloco) : 
+                                $data = get_post_meta($bloco->ID, '_meu_banner_data', true);
+                                $display_mode = isset($data['display_mode']) ? $data['display_mode'] : 'geral';
+                                $mode_label = ($display_mode === 'responsivo') ? __('Responsivo', 'meu-banner') : __('Geral', 'meu-banner');
+                                $display_name = sprintf('%s (%s)', esc_html($bloco->post_title), $mode_label);
+                                ?>
+                                <option value="<?php echo esc_attr($bloco->ID); ?>" <?php selected($bloco_id, $bloco->ID); ?>><?php echo $display_name; ?></option>
                             <?php endforeach; ?>
                         </select>
                     </td>

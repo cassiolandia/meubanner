@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Meu Banner
  * Description:       Um plugin para gerenciar blocos de anúncios com suporte a banners em subgrupos, exibição via shortcode e inserção automática.
- * Version:           1.5
+ * Version:           1.6.5
  * Author:            Cássio
  * Requires at least: 6.0
  * Requires PHP:      8.0
@@ -467,3 +467,77 @@ function meu_banner_enqueue_frontend_assets() {
     }
 }
 add_action('wp_footer', 'meu_banner_enqueue_frontend_assets');
+
+/**
+ * Limpa o cache de plugins de otimização conhecidos ao salvar as regras.
+ */
+function meu_banner_clear_optimization_caches() {
+    // WP Rocket
+    if (function_exists('rocket_clean_domain')) {
+        rocket_clean_domain();
+    }
+    // W3 Total Cache
+    if (function_exists('w3tc_flush_all')) {
+        w3tc_flush_all();
+    }
+    // WP Super Cache
+    if (function_exists('wp_cache_clear_cache')) {
+        wp_cache_clear_cache();
+    }
+    // LiteSpeed Cache
+    if (class_exists('LiteSpeed_Cache_API') && method_exists('LiteSpeed_Cache_API', 'purge_all')) {
+        LiteSpeed_Cache_API::purge_all();
+    }
+}
+add_action('update_option_meu_banner_auto_insert_rules', 'meu_banner_clear_optimization_caches', 10, 0);
+add_action('save_post_meu_banner_bloco', 'meu_banner_clear_optimization_caches', 10, 0);
+
+/**
+ * Ação de desinstalação: remove opções e o CPT.
+ */
+function meu_banner_uninstall() {
+    // Remove a opção de regras
+    delete_option('meu_banner_auto_insert_rules');
+
+    // Remove todos os posts do tipo 'meu_banner_bloco' e seus metadados
+    $blocos = get_posts(['post_type' => 'meu_banner_bloco', 'numberposts' => -1, 'post_status' => 'any']);
+    if (!empty($blocos)) {
+        foreach ($blocos as $bloco) {
+            wp_delete_post($bloco->ID, true); // true para forçar a exclusão
+        }
+    }
+
+    // Remove o CPT do banco de dados (opcional, mas bom para limpeza completa)
+    unregister_post_type('meu_banner_bloco');
+    flush_rewrite_rules();
+}
+register_uninstall_hook(__FILE__, 'meu_banner_uninstall');
+
+/**
+ * Ação de desativação: apenas limpa as regras de reescrita.
+ */
+function meu_banner_deactivate() {
+    flush_rewrite_rules();
+}
+register_deactivation_hook(__FILE__, 'meu_banner_deactivate');
+
+/**
+ * Ação de ativação: registra o CPT e define um transiente para limpar as regras de reescrita.
+ * Isso evita timeouts em atualizações, adiando a chamada flush_rewrite_rules().
+ */
+function meu_banner_activate() {
+    meu_banner_register_post_type();
+    set_transient('meu_banner_flush_rewrite_rules', true, 30);
+}
+register_activation_hook(__FILE__, 'meu_banner_activate');
+
+/**
+ * Limpa as regras de reescrita na inicialização do admin se o transiente estiver definido.
+ */
+function meu_banner_flush_rules_on_init() {
+    if (get_transient('meu_banner_flush_rewrite_rules')) {
+        flush_rewrite_rules();
+        delete_transient('meu_banner_flush_rewrite_rules');
+    }
+}
+add_action('admin_init', 'meu_banner_flush_rules_on_init');

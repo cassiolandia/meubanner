@@ -24,6 +24,9 @@ if (is_admin()) {
     require_once MEU_BANNER_PLUGIN_DIR . 'admin/reports.php';
 }
 
+// Inclui a lógica de inserção do frontend
+require_once MEU_BANNER_PLUGIN_DIR . 'includes/frontend-insertion.php';
+
 
 
 /**

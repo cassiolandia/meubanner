@@ -302,6 +302,7 @@ function meu_banner_set_custom_edit_columns($columns) {
         $new_columns[$key] = $title;
         if ($key == 'title') {
             $new_columns['shortcode'] = __('Shortcode', 'meu-banner');
+            $new_columns['taxonomy-cr_campaign'] = __('Campanha', 'meu-banner');
             $new_columns['total_views'] = __('Visualizações', 'meu-banner');
             $new_columns['report'] = __('Relatório', 'meu-banner'); // Nova coluna
         }
@@ -310,11 +311,41 @@ function meu_banner_set_custom_edit_columns($columns) {
 }
 add_filter('manage_meu_banner_bloco_posts_columns', 'meu_banner_set_custom_edit_columns');
 
+// Adiciona a coluna "Visualizações" na lista de termos da taxonomia "cr_campaign"
+function meu_banner_add_campaign_views_column($columns) {
+    $columns['views'] = __('Visualizações', 'meu-banner');
+    return $columns;
+}
+add_filter('manage_edit-cr_campaign_columns', 'meu_banner_add_campaign_views_column');
+
+// Exibe o link para o relatório de visualizações da campanha
+function meu_banner_add_campaign_views_column_content($content, $column_name, $term_id) {
+    if ('views' === $column_name) {
+        $report_url = admin_url('admin.php?page=meu_banner_campaign_report&campaign_id=' . $term_id);
+        return '<a href="' . esc_url($report_url) . '" class="button">' . __('Ver Relatório', 'meu-banner') . '</a>';
+    }
+    return $content;
+}
+add_filter('manage_cr_campaign_custom_column', 'meu_banner_add_campaign_views_column_content', 10, 3);
+
 /**
  * Exibe o conteúdo das colunas personalizadas.
  */
 function meu_banner_custom_column($column, $post_id) {
     switch ($column) {
+        case 'taxonomy-cr_campaign':
+            $terms = get_the_terms($post_id, 'cr_campaign');
+            if (is_array($terms)) {
+                $campaign_names = [];
+                foreach ($terms as $term) {
+                    $campaign_names[] = esc_html($term->name);
+                }
+                echo implode(', ', $campaign_names);
+            } else {
+                echo '—';
+            }
+            break;
+
         case 'shortcode':
             $post_slug = get_post_field('post_name', $post_id);
             echo '<code>[meu_banner id="' . $post_id . '"]</code><br>';
@@ -380,6 +411,18 @@ function meu_banner_add_auto_insert_page() {
     );
 }
 add_action('admin_menu', 'meu_banner_add_auto_insert_page');
+
+function meu_banner_add_campaign_report_page() {
+    add_submenu_page(
+        null, // Não exibe no menu
+        __('Relatório da Campanha', 'meu-banner'),
+        __('Relatório da Campanha', 'meu-banner'),
+        'manage_options',
+        'meu_banner_campaign_report',
+        'meu_banner_render_campaign_report_page'
+    );
+}
+add_action('admin_menu', 'meu_banner_add_campaign_report_page');
 
 /**
  * Enfileira scripts e estilos apenas na página de Inserção Automática.

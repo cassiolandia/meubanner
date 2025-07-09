@@ -22,6 +22,7 @@ if (is_admin()) {
     require_once MEU_BANNER_PLUGIN_DIR . 'admin/admin-functions.php';
     require_once MEU_BANNER_PLUGIN_DIR . 'admin/auto-insert-page.php';
     require_once MEU_BANNER_PLUGIN_DIR . 'admin/reports.php';
+    require_once MEU_BANNER_PLUGIN_DIR . 'admin/campaign-reports.php';
 }
 
 // Inclui a lógica de inserção do frontend
@@ -36,10 +37,41 @@ require_once MEU_BANNER_PLUGIN_DIR . 'includes/insertion-list.php';
  */
 function meu_banner_register_post_type() {
     $labels = [ 'name' => _x('Blocos de Anúncios', 'Post type general name', 'meu-banner'), 'singular_name' => _x('Bloco de Anúncio', 'Post type singular name', 'meu-banner'), 'menu_name' => _x('Meus Banners', 'Admin Menu text', 'meu-banner'), 'add_new' => __('Adicionar Novo', 'meu-banner'), 'add_new_item' => __('Adicionar Novo Bloco', 'meu-banner'), 'edit_item' => __('Editar Bloco', 'meu-banner'), 'new_item' => __('Novo Bloco', 'meu-banner'), 'view_item' => __('Ver Bloco', 'meu-banner'), 'search_items' => __('Pesquisar Blocos', 'meu-banner'), 'not_found' => __('Nenhum bloco encontrado', 'meu-banner'), 'not_found_in_trash' => __('Nenhum bloco encontrado na lixeira', 'meu-banner'), ];
-    $args = [ 'labels' => $labels, 'public' => false, 'publicly_queryable' => false, 'show_ui' => true, 'show_in_menu' => true, 'query_var' => true, 'rewrite' => ['slug' => 'meu-banner-bloco'], 'capability_type' => 'post', 'has_archive' => false, 'hierarchical' => false, 'menu_position' => 20, 'menu_icon' => 'dashicons-format-gallery', 'supports' => ['title'], ];
+    $args = [ 'labels' => $labels, 'public' => false, 'publicly_queryable' => false, 'show_ui' => true, 'show_in_menu' => true, 'query_var' => true, 'rewrite' => ['slug' => 'meu-banner-bloco'], 'capability_type' => 'post', 'has_archive' => false, 'hierarchical' => false, 'menu_position' => 20, 'menu_icon' => 'dashicons-format-gallery', 'supports' => ['title'], 'taxonomies'  => ['cr_campaign'], ];
     register_post_type('meu_banner_bloco', $args);
 }
 add_action('init', 'meu_banner_register_post_type');
+
+/**
+ * Registra a taxonomia "Campanha".
+ */
+function meu_banner_register_campanha_taxonomy() {
+    $labels = [
+        'name'              => _x('Campanhas', 'taxonomy general name', 'meu-banner'),
+        'singular_name'     => _x('Campanha', 'taxonomy singular name', 'meu-banner'),
+        'search_items'      => __('Pesquisar Campanhas', 'meu-banner'),
+        'all_items'         => __('Todas as Campanhas', 'meu-banner'),
+        'parent_item'       => __('Campanha Pai', 'meu-banner'),
+        'parent_item_colon' => __('Campanha Pai:', 'meu-banner'),
+        'edit_item'         => __('Editar Campanha', 'meu-banner'),
+        'update_item'       => __('Atualizar Campanha', 'meu-banner'),
+        'add_new_item'      => __('Adicionar Nova Campanha', 'meu-banner'),
+        'new_item_name'     => __('Novo Nome da Campanha', 'meu-banner'),
+        'menu_name'         => __('Campanhas', 'meu-banner'),
+    ];
+
+    $args = [
+        'hierarchical'      => true,
+        'labels'            => $labels,
+        'show_ui'           => true,
+        'show_admin_column' => true,
+        'query_var'         => true,
+        'rewrite'           => ['slug' => 'cr_campaign'],
+    ];
+
+    register_taxonomy('cr_campaign', ['meu_banner_bloco'], $args);
+}
+add_action('init', 'meu_banner_register_campanha_taxonomy');
 
 /**
  * Seleção aleatória ponderada.
